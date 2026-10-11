@@ -1,3 +1,5 @@
+import "server-only"
+
 /**
  * Legacy layout: all messages in `messages` (Android, until ~2022).
  * See docs/msgstore-schema.md.

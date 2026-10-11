@@ -1,3 +1,5 @@
+import "server-only"
+
 import type { RawQuote, RawRow, RawSystem } from "./backend"
 import { emptyRow } from "./backend/types"
 import { ModernType } from "./backend/modern"

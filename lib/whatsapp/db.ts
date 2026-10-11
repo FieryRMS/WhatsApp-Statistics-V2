@@ -1,39 +1,45 @@
+import "server-only"
+
+import { AsyncLocalStorage } from "node:async_hooks"
 import fs from "node:fs"
 import { DatabaseSync, type StatementSync } from "node:sqlite"
 import path from "node:path"
 
 /**
- * Read-only connection to msgstore.db.
+ * Data sources.
  *
- * Everything defaults to ./whatsapp-data. Override with env vars:
+ * A DataSource is one set of WhatsApp files (msgstore.db, optional wa.db and
+ * contacts.json, optional media folder) with its own connection and caches.
+ * Admins read the primary source; each restricted account reads its own
+ * filtered copy (see lib/access/snapshot.ts).
+ *
+ * Every query helper below runs against the source selected for the current
+ * request with `runWithSource()`. Outside of that there is no source, and they
+ * throw — data access fails closed instead of defaulting to the full database.
+ *
+ * The primary source defaults to ./whatsapp-data. Override with env vars:
  *   WHATSAPP_DATA_DIR    – the folder itself
  *   WHATSAPP_DB_PATH     – msgstore.db                (default: <data dir>/msgstore.db)
  *   WHATSAPP_WA_DB_PATH  – wa.db, optional            (default: <data dir>/wa.db)
  *   WHATSAPP_CONTACTS    – contacts.json, optional    (default: <data dir>/contacts.json)
  *   WHATSAPP_MEDIA_DIR   – folder containing "Media/" (default: <data dir>)
  */
+
+export interface SourcePaths {
+  db: string
+  waDb: string
+  contacts: string
+  /** Folder containing "Media/", or null when this source may not serve media files. */
+  mediaRoot: string | null
+}
+
 const dataDir = process.env.WHATSAPP_DATA_DIR ?? path.join(process.cwd(), "whatsapp-data")
 
-export const paths = {
-  dataDir,
+export const primaryPaths: SourcePaths = {
   db: process.env.WHATSAPP_DB_PATH ?? path.join(dataDir, "msgstore.db"),
   waDb: process.env.WHATSAPP_WA_DB_PATH ?? path.join(dataDir, "wa.db"),
   contacts: process.env.WHATSAPP_CONTACTS ?? path.join(dataDir, "contacts.json"),
   mediaRoot: process.env.WHATSAPP_MEDIA_DIR ?? dataDir,
-}
-
-const tableCache = new Map<string, boolean>()
-
-interface DbState {
-  db: DatabaseSync
-  statements: Map<string, StatementSync>
-  version: string
-}
-
-const globalForDb = globalThis as unknown as {
-  __waDb?: DbState
-  __waCache?: Map<string, { version: string; value: unknown }>
-  __waVersion?: { checkedAt: number; value: string }
 }
 
 function stamp(p: string) {
@@ -45,17 +51,9 @@ function stamp(p: string) {
   }
 }
 
-/**
- * Changes whenever msgstore.db, wa.db or contacts.json is replaced/added/removed
- * (checked at most every 2s), so swapping in another person's database needs no restart.
- */
-export function dataVersion(): string {
-  const now = Date.now()
-  const v = globalForDb.__waVersion
-  if (v && now - v.checkedAt < 2000) return v.value
-  const value = [paths.db, paths.waDb, paths.contacts].map(stamp).join("|")
-  globalForDb.__waVersion = { checkedAt: now, value }
-  return value
+/** Fingerprint of a set of files; changes when any is replaced, added or removed. */
+export function filesVersion(p: Pick<SourcePaths, "db" | "waDb" | "contacts">): string {
+  return [p.db, p.waDb, p.contacts].map(stamp).join("|")
 }
 
 /**
@@ -63,73 +61,165 @@ export function dataVersion(): string {
  * creating -shm/-wal files next to the user's database.
  */
 export function openReadOnly(file: string): DatabaseSync {
-  const uri = `file:${encodeURI(path.resolve(file)).replace(/\?/g, "%3F").replace(/#/g, "%23")}?immutable=1`
-  return new DatabaseSync(uri, { readOnly: true })
+  return new DatabaseSync(sqliteUri(file, "immutable=1"), { readOnly: true })
 }
 
-function state(): DbState {
-  const version = dataVersion()
-  const s = globalForDb.__waDb
-  if (s && s.version === version) return s
-  s?.db.close()
-  tableCache.clear()
-  globalForDb.__waDb = {
-    db: openReadOnly(paths.db),
-    statements: new Map(),
-    version,
+export function sqliteUri(file: string, query: string) {
+  return `file:${encodeURI(path.resolve(file)).replace(/\?/g, "%3F").replace(/#/g, "%23")}?${query}`
+}
+
+export class DataSource {
+  readonly paths: SourcePaths
+  private conn: DatabaseSync | null = null
+  private connVersion = ""
+  private statements = new Map<string, StatementSync>()
+  private tables = new Map<string, boolean>()
+  private values = new Map<string, { version: string; value: unknown }>()
+  private versionCheck = { at: 0, value: "" }
+
+  constructor(paths: SourcePaths) {
+    this.paths = paths
   }
-  return globalForDb.__waDb
+
+  /** Changes when the source's files change (checked at most every 2s). */
+  version(): string {
+    const now = Date.now()
+    if (now - this.versionCheck.at > 2000 || !this.versionCheck.value) {
+      this.versionCheck = { at: now, value: filesVersion(this.paths) }
+    }
+    return this.versionCheck.value
+  }
+
+  db(): DatabaseSync {
+    const v = this.version()
+    if (!this.conn || this.connVersion !== v) {
+      this.close()
+      this.conn = openReadOnly(this.paths.db)
+      this.connVersion = v
+    }
+    return this.conn
+  }
+
+  stmt(sql: string): StatementSync {
+    const db = this.db()
+    let st = this.statements.get(sql)
+    if (!st) {
+      st = db.prepare(sql)
+      this.statements.set(sql, st)
+    }
+    return st
+  }
+
+  hasTable(name: string): boolean {
+    this.db()
+    let hit = this.tables.get(name)
+    if (hit === undefined) {
+      hit = !!this.stmt("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name)
+      this.tables.set(name, hit)
+    }
+    return hit
+  }
+
+  cached<T>(key: string, compute: () => T): T {
+    const version = this.version()
+    const hit = this.values.get(key)
+    if (hit && hit.version === version) return hit.value as T
+    const value = compute()
+    this.values.set(key, { version, value })
+    return value
+  }
+
+  clearCache() {
+    this.values.clear()
+  }
+
+  close() {
+    this.conn?.close()
+    this.conn = null
+    this.statements.clear()
+    this.tables.clear()
+  }
 }
 
-/** Drop memoized values (called when a data module is reloaded in dev). */
+// ---------------------------------------------------------------------------
+// Source registry + per-request scope
+// ---------------------------------------------------------------------------
+
+const globalForDb = globalThis as unknown as {
+  __waSources?: Map<string, DataSource>
+  __waScope?: AsyncLocalStorage<DataSource>
+}
+
+const sources = (globalForDb.__waSources ??= new Map())
+const scope = (globalForDb.__waScope ??= new AsyncLocalStorage<DataSource>())
+
+/** The shared DataSource for a set of paths (one connection/cache per distinct config). */
+export function getSource(paths: SourcePaths): DataSource {
+  const key = JSON.stringify([paths.db, paths.waDb, paths.contacts, paths.mediaRoot])
+  let s = sources.get(key)
+  if (!s) {
+    s = new DataSource(paths)
+    sources.set(key, s)
+  }
+  return s
+}
+
+/** Close and forget a source (e.g. a replaced snapshot) so its files can be deleted. */
+export function dropSource(dbPath: string) {
+  for (const [key, s] of sources) {
+    if (s.paths.db === dbPath) {
+      s.close()
+      sources.delete(key)
+    }
+  }
+}
+
+export function primarySource(): DataSource {
+  return getSource(primaryPaths)
+}
+
+/** Run `fn` with `source` as the data source for every query helper it calls. */
+export function runWithSource<T>(source: DataSource, fn: () => T): T {
+  return scope.run(source, fn)
+}
+
+/** The source selected for this request. Throws if none — never falls back to the primary DB. */
+export function currentSource(): DataSource {
+  const s = scope.getStore()
+  if (!s) throw new Error("No data source in scope: wrap data access in runWithSource() (see lib/access/dal.ts)")
+  return s
+}
+
+/** Drop memoized values in every source (called when a data module is reloaded in dev). */
 export function clearCache() {
-  globalForDb.__waCache?.clear()
+  for (const s of sources.values()) s.clearCache()
 }
 
-/** Memoize a derived value until the underlying data files change. */
-export function cached<T>(key: string, compute: () => T): T {
-  const cache = (globalForDb.__waCache ??= new Map())
-  const version = dataVersion()
-  const hit = cache.get(key)
-  if (hit && hit.version === version) return hit.value as T
-  const value = compute()
-  cache.set(key, { version, value })
-  return value
-}
-
-export function db() {
-  return state().db
-}
-
-/** Prepared statement, cached by SQL text. */
-export function stmt(sql: string): StatementSync {
-  const s = state()
-  let st = s.statements.get(sql)
-  if (!st) {
-    st = s.db.prepare(sql)
-    s.statements.set(sql, st)
-  }
-  return st
-}
+// ---------------------------------------------------------------------------
+// Query helpers (all scoped to currentSource())
+// ---------------------------------------------------------------------------
 
 export type Row = Record<string, unknown>
 
+export function sourcePaths(): SourcePaths {
+  return currentSource().paths
+}
+
+export function cached<T>(key: string, compute: () => T): T {
+  return currentSource().cached(key, compute)
+}
+
 export function all<T = Row>(sql: string, ...params: (string | number | null)[]): T[] {
-  return stmt(sql).all(...params) as T[]
+  return currentSource().stmt(sql).all(...params) as T[]
 }
 
 export function get<T = Row>(sql: string, ...params: (string | number | null)[]): T | undefined {
-  return stmt(sql).get(...params) as T | undefined
+  return currentSource().stmt(sql).get(...params) as T | undefined
 }
 
 /** Schemas differ between WhatsApp versions — check before querying optional tables. */
 export function hasTable(name: string): boolean {
-  let hit = tableCache.get(name)
-  if (hit === undefined) {
-    hit = !!get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", name)
-    tableCache.set(name, hit)
-  }
-  return hit
+  return currentSource().hasTable(name)
 }
 
 /** "?, ?, ?" for IN clauses. */

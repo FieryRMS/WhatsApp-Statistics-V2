@@ -1,3 +1,5 @@
+import "server-only"
+
 /**
  * Schema-independent contract between a msgstore.db layout and the rest of the app.
  *

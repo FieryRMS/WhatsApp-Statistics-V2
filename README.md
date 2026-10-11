@@ -28,6 +28,35 @@ You can override these paths with `WHATSAPP_DATA_DIR`, `WHATSAPP_DB_PATH`, `WHAT
 
 See [docs/msgstore-schema.md](docs/msgstore-schema.md) for the reverse-engineered schema and message types.
 
+## Accounts and access
+
+On first start the server prints a one-time **setup token** to its console. Open `/setup` and use it
+to create the admin account. Until an admin exists, a new token is printed on every start.
+
+- **Admins** see every chat and manage accounts at `/admin`.
+- **Other accounts** see only the chats the admin grants them. A grant can cover a whole chat or a
+  date range within it, and there is a per-account switch for opening media files.
+
+How access is enforced:
+
+- **A filtered copy per account.** Each restricted account reads its own SQLite copy containing only
+  its granted messages, people and names, built by allowlist into `app-data/snapshots/`. Data
+  outside the grant isn't hidden; it isn't there. Every copy is verified before it's used, and it's
+  rebuilt automatically when grants or the WhatsApp files change.
+- **One gate for all data access.** Every page, API route and server action resolves the session and
+  that account's data source in `lib/access/dal.ts`. Query helpers throw if called outside it, so
+  they never default to the full database. `proxy.ts` only redirects signed-out visitors.
+- **Sessions:** a random token in an HttpOnly, SameSite cookie, which is marked Secure when the
+  request arrived over HTTPS. Only its hash is stored. Sessions are revocable, and disabling an
+  account or resetting its password ends them immediately.
+- **Passwords:** hashed with scrypt. Sign-in is rate-limited per username, and responses don't
+  reveal whether a username exists.
+
+Accounts live in `app-data/app.db` (gitignored). Use `WHATSAPP_APP_DATA_DIR` to put them elsewhere.
+
+`next dev` and `next start` listen on every network interface by default. Use `-H 127.0.0.1` to keep
+the server local, and put a reverse proxy with HTTPS in front if you expose it.
+
 ## Opening a chat at a point in time
 
 ```ts
@@ -63,6 +92,11 @@ lib/whatsapp/
   anchor.ts       chat URLs and anchors. Client-safe.
   format.ts       previews, system-event text, dates. Client-safe.
   client.ts       browser fetchers for the API
+lib/auth/         accounts, passwords, sessions, setup token, server actions (app-data/app.db)
+lib/access/       dal.ts (session → data source gate), snapshot.ts (per-account filtered copies)
+lib/admin/        admin-only server actions
+app/(auth)/       /login, /setup
+app/(explorer)/   everything behind sign-in, incl. /admin
 app/api/          chats, messages (cursor paging), thumbnails, media (Range streaming)
 hooks/use-message-stream.ts   bidirectional windowed paging
 components/messages/          one renderer per message kind + registry.ts

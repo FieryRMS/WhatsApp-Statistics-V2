@@ -1,3 +1,5 @@
+import "server-only"
+
 import { cached, get, hasTable } from "../db"
 import { legacyBackend } from "./legacy"
 import { modernBackend } from "./modern"

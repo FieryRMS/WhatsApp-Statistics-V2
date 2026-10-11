@@ -1,17 +1,23 @@
+import "server-only"
+
 import fs from "node:fs"
 import path from "node:path"
 
-import { paths } from "./db"
+import { sourcePaths } from "./db"
 
 /**
  * Media files aren't in the database — only their path on the phone
  * (e.g. "Media/WhatsApp Images/IMG-20200707-WA0000.jpg"). Copy the phone's
  * WhatsApp folder (the one containing "Media/") to WHATSAPP_MEDIA_DIR
  * (default ./whatsapp-data) and the originals will be served.
+ *
+ * Accounts without media access get a source whose mediaRoot is null, so no
+ * path resolves and no file is ever served or advertised to them.
  */
 export function resolveMediaPath(filePath: string | null | undefined): string | null {
-  if (!filePath) return null
-  const root = path.resolve(paths.mediaRoot)
+  const mediaRoot = sourcePaths().mediaRoot
+  if (!filePath || !mediaRoot) return null
+  const root = path.resolve(mediaRoot)
   // Paths are relative to the WhatsApp folder; strip any absolute prefix
   // like "/storage/emulated/0/WhatsApp/".
   const rel = filePath.replace(/^.*?\/WhatsApp\//, "").replace(/^\/+/, "")

@@ -41,3 +41,7 @@ next-env.d.ts
 # WhatsApp data (personal)
 /whatsapp-data/*
 !/whatsapp-data/.gitkeep
+
+# Accounts, sessions and per-account filtered copies (private)
+/app-data/*
+!/app-data/.gitkeep

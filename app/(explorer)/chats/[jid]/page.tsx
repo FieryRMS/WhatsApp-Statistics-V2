@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { ChatView } from "@/components/chat/chat-view"
+import { withData } from "@/lib/access/dal"
 import { anchorFromParams, decodeJidParam } from "@/lib/whatsapp/anchor"
 import { getChat } from "@/lib/whatsapp/queries"
 
@@ -11,13 +12,14 @@ import { getChat } from "@/lib/whatsapp/queries"
  */
 export default async function ChatPage(props: PageProps<"/chats/[jid]">) {
   const jid = decodeJidParam((await props.params).jid)
-  const chat = getChat(jid)
+  const chat = await withData(() => getChat(jid))
   if (!chat) notFound()
   const anchor = anchorFromParams(await props.searchParams)
   return <ChatView key={jid} jid={jid} chat={chat} anchor={anchor} />
 }
 
 export async function generateMetadata(props: PageProps<"/chats/[jid]">) {
-  const chat = getChat(decodeJidParam((await props.params).jid))
+  const jid = decodeJidParam((await props.params).jid)
+  const chat = await withData(() => getChat(jid))
   return { title: chat ? `${chat.name} · WhatsApp Stats` : "Chat not found" }
 }

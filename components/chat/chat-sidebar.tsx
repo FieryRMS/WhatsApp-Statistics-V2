@@ -3,17 +3,20 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Archive, MessageSquareText, Search } from "lucide-react"
+import { Archive, LogOut, MessageSquareText, Search, Shield } from "lucide-react"
 
 import { ChatAvatar } from "./chat-avatar"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarInput,
   SidebarMenu,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
+import { logoutAction } from "@/lib/auth/actions"
 import { chatHref, decodeJidParam } from "@/lib/whatsapp/anchor"
 import { formatListTimestamp } from "@/lib/whatsapp/format"
 import type { ChatSummary } from "@/lib/whatsapp/types"
@@ -77,7 +80,36 @@ const ChatRow = React.memo(function ChatRow({ chat, active }: { chat: ChatSummar
   )
 })
 
-export function ChatSidebar({ chats }: { chats: ChatSummary[] }) {
+function UserFooter({ user }: { user: { username: string; role: "admin" | "user" } }) {
+  return (
+    <SidebarFooter className="flex-row items-center gap-2 border-t px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">{user.username}</div>
+        <div className="text-xs text-muted-foreground">{user.role === "admin" ? "Admin · all chats" : "Restricted access"}</div>
+      </div>
+      {user.role === "admin" && (
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/admin">
+            <Shield /> Admin
+          </Link>
+        </Button>
+      )}
+      <form action={logoutAction}>
+        <Button type="submit" variant="ghost" size="icon" aria-label="Sign out" title="Sign out">
+          <LogOut />
+        </Button>
+      </form>
+    </SidebarFooter>
+  )
+}
+
+export function ChatSidebar({
+  chats,
+  user,
+}: {
+  chats: ChatSummary[]
+  user: { username: string; role: "admin" | "user" }
+}) {
   const pathname = usePathname()
   const [query, setQuery] = React.useState("")
   const [filter, setFilter] = React.useState<Filter>("all")
@@ -129,9 +161,14 @@ export function ChatSidebar({ chats }: { chats: ChatSummary[] }) {
           {visible.map((chat) => (
             <ChatRow key={chat.jid} chat={chat} active={chat.jid === activeJid} />
           ))}
-          {visible.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted-foreground">No chats found</p>}
+          {visible.length === 0 && (
+            <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+              {chats.length === 0 ? "No chats have been shared with this account yet." : "No chats found"}
+            </p>
+          )}
         </SidebarMenu>
       </SidebarContent>
+      <UserFooter user={user} />
     </Sidebar>
   )
 }

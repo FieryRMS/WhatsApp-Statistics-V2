@@ -1,7 +1,9 @@
+import "server-only"
+
 import fs from "node:fs"
 import type { DatabaseSync } from "node:sqlite"
 
-import { all, cached, clearCache, hasTable, openReadOnly, paths } from "./db"
+import { all, cached, clearCache, hasTable, openReadOnly, sourcePaths } from "./db"
 import { parseVCard } from "./decoders"
 import { chatKind, jidServer, jidUser, phoneFromJid } from "./jid"
 import type { Participant } from "./types"
@@ -81,14 +83,16 @@ export function canonicalJid(jid: string): string {
 // ---------------------------------------------------------------------------
 
 function fromOverrides(put: Put) {
-  if (!fs.existsSync(paths.contacts)) return
-  const json = JSON.parse(fs.readFileSync(paths.contacts, "utf8")) as Record<string, string>
+  const file = sourcePaths().contacts
+  if (!fs.existsSync(file)) return
+  const json = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, string>
   for (const [jid, name] of Object.entries(json)) put(jid, name)
 }
 
 function withWaDb(fn: (wa: DatabaseSync) => void) {
-  if (!fs.existsSync(paths.waDb)) return
-  const wa = openReadOnly(paths.waDb)
+  const file = sourcePaths().waDb
+  if (!fs.existsSync(file)) return
+  const wa = openReadOnly(file)
   try {
     fn(wa)
   } finally {

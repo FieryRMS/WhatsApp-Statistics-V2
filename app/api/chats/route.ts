@@ -1,8 +1,6 @@
-import { connection } from "next/server"
-
+import { apiWithData } from "@/lib/access/dal"
 import { listChats } from "@/lib/whatsapp/queries"
 
 export async function GET() {
-  await connection()
-  return Response.json(listChats())
+  return apiWithData(() => listChats())
 }

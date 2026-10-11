@@ -1,3 +1,5 @@
+import "server-only"
+
 /**
  * Modern layout (~2022+): `message` + side tables (message_media, message_system,
  * message_quoted, message_location, message_poll, …). Senders may be LIDs (…@lid);

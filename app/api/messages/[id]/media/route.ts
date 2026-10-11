@@ -2,19 +2,25 @@ import fs from "node:fs"
 import { Readable } from "node:stream"
 import type { NextRequest } from "next/server"
 
+import { apiWithData } from "@/lib/access/dal"
 import { mimeFromPath } from "@/lib/whatsapp/media"
 import { getMediaFile } from "@/lib/whatsapp/queries"
 
 /** Streams the original media file, with Range support for audio/video seeking. */
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/messages/[id]/media">) {
-  const file = getMediaFile(Number((await ctx.params).id))
+  const id = Number((await ctx.params).id)
+  // Resolves only if the message is in the caller's data AND their account may see media.
+  return apiWithData(() => serve(req, Number.isSafeInteger(id) ? getMediaFile(id) : null))
+}
+
+function serve(req: NextRequest, file: { path: string; mime: string | null } | null): Response {
   if (!file || !fs.existsSync(file.path)) return new Response(null, { status: 404 })
 
   const { size } = fs.statSync(file.path)
   const headers = new Headers({
     "Content-Type": mimeFromPath(file.path, file.mime),
     "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=31536000, immutable",
+    "Cache-Control": "private, max-age=86400",
   })
   if (req.nextUrl.searchParams.has("download")) {
     headers.set("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(file.path.split("/").pop()!)}`)

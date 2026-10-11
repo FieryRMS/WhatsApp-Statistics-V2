@@ -1,3 +1,5 @@
+import "server-only"
+
 /**
  * Server-side data access. This is the single entry point other parts of the
  * app should use to read the WhatsApp database. Works with both the legacy and
