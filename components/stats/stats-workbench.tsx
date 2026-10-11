@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import {
   BarChart3,
   Bookmark,
+  EyeOff,
+  LineChart,
   Link2,
   Loader2,
   RotateCcw,
@@ -42,7 +44,11 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { chatHref } from "@/lib/whatsapp/anchor"
-import { deleteStatAction, saveStatAction } from "@/lib/stats/actions"
+import {
+  deleteStatAction,
+  saveHiddenWordsAction,
+  saveStatAction,
+} from "@/lib/stats/actions"
 import { describeQuery } from "@/lib/stats/describe"
 import type { Preset } from "@/lib/stats/presets"
 import { encodeQuery } from "@/lib/stats/schema"
@@ -93,6 +99,7 @@ export function StatsWorkbench({
   saved,
   notice,
   viewerIsAdmin,
+  hiddenWords: initialHiddenWords,
 }: {
   initialQuery: StatQuery
   initialSaved: SavedSummary | null
@@ -102,8 +109,13 @@ export function StatsWorkbench({
   saved: SavedSummary[]
   notice: string | null
   viewerIsAdmin: boolean
+  hiddenWords: string[]
 }) {
   const router = useRouter()
+  const [hiddenWords, setHiddenWords] = React.useState(initialHiddenWords)
+  const [savingWords, setSavingWords] = React.useState(false)
+  /** Bumped after the hidden words change so word charts are recounted. */
+  const [wordsVersion, setWordsVersion] = React.useState(0)
   const [query, setQuery] = React.useState<StatQuery>(initialQuery)
   const [current, setCurrent] = React.useState<SavedSummary | null>(
     initialSaved
@@ -147,7 +159,7 @@ export function StatsWorkbench({
       clearTimeout(t)
       ctrl.abort()
     }
-  }, [query])
+  }, [query, wordsVersion])
 
   // Going into a chat and pressing Back must land on exactly this chart (edits, view, zoom,
   // scroll). Rewriting the URL with history.replaceState confuses the router's Back handling,
@@ -227,6 +239,33 @@ export function StatsWorkbench({
     router.push(chatHref(p.jid, { messageId: p.messageId }))
   }
 
+  const saveWords = async (words: string[] | null) => {
+    setSavingWords(true)
+    try {
+      const res = await saveHiddenWordsAction(words)
+      setHiddenWords(res.words)
+      setWordsVersion((v) => v + 1)
+    } catch {
+      toast.error("Couldn't save your hidden words.")
+    } finally {
+      setSavingWords(false)
+    }
+  }
+
+  const chartWord = (word: string) =>
+    load({
+      ...query,
+      title: `“${word}” over time`,
+      description: undefined,
+      series: [
+        { id: "s1", metric: "term", filters: { text: word, wholeWord: true } },
+      ],
+      groupBy: "month",
+      chart: "auto",
+      sort: "key",
+      transform: "none",
+    })
+
   const select = (category: number, series?: number) => {
     if (!result) return
     const points = (
@@ -234,7 +273,12 @@ export function StatsWorkbench({
     ).flatMap((s) => s.points[category] ?? [])
     if (points.length === 0) return
     const chats = new Set(points.map((p) => p.jid))
-    if (chats.size === 1 && (series != null || result.series.length === 1))
+    // Words always get the dialog, which can also hide the word or chart it over time.
+    if (
+      result.query.groupBy !== "word" &&
+      chats.size === 1 &&
+      (series != null || result.series.length === 1)
+    )
       open(points[0])
     else setSelection({ category, series })
   }
@@ -345,6 +389,9 @@ export function StatsWorkbench({
             query={query}
             onChange={changeQuery}
             catalog={catalog}
+            hiddenWords={hiddenWords}
+            onHiddenWordsChange={saveWords}
+            savingWords={savingWords}
           />
           <div className="sticky bottom-0 -mx-4 mt-6 -mb-4 border-t bg-background/95 p-3 backdrop-blur lg:hidden">
             <Button className="w-full" onClick={() => setPanel("chart")}>
@@ -419,7 +466,7 @@ export function StatsWorkbench({
             {result && result.categories.length > 0 && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  {result.chart !== "heatmap" ? (
+                  {result.chart !== "heatmap" && result.chart !== "cloud" ? (
                     <ChartLegend
                       result={result}
                       shape={result.chart === "line" ? "line" : "rect"}
@@ -448,7 +495,13 @@ export function StatsWorkbench({
                   <DataTable result={result} onSelect={select} />
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">
+                  <p
+                    className={cn(
+                      "text-xs text-muted-foreground",
+                      // The cloud has its own hint line.
+                      result.chart === "cloud" && view === "chart" && "hidden"
+                    )}
+                  >
                     Tip: click any point, bar or cell to jump to that moment in
                     the chat.
                     {result.isTime &&
@@ -484,6 +537,11 @@ export function StatsWorkbench({
         selection={selection}
         onClose={() => setSelection(null)}
         onOpen={open}
+        onChartWord={chartWord}
+        onHideWord={(w) => {
+          setSelection(null)
+          void saveWords([...hiddenWords, w])
+        }}
       />
       <PresetsDialog
         open={dialog === "presets"}
@@ -520,13 +578,21 @@ function PointDialog({
   selection,
   onClose,
   onOpen,
+  onChartWord,
+  onHideWord,
 }: {
   result: StatResult | null
   selection: Selection | null
   onClose: () => void
   onOpen: (p: PointChat) => void
+  onChartWord: (word: string) => void
+  onHideWord: (word: string) => void
 }) {
   if (!result || !selection) return null
+  const word =
+    result.query.groupBy === "word"
+      ? result.categories[selection.category]?.label
+      : null
   const series =
     selection.series != null ? [result.series[selection.series]] : result.series
   return (
@@ -581,6 +647,20 @@ function PointDialog({
             )
           })}
         </div>
+        {word && (
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onChartWord(word)}
+            >
+              <LineChart /> Chart “{word}” over time
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onHideWord(word)}>
+              <EyeOff /> Hide this word
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

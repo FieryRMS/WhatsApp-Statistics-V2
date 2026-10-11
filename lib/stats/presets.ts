@@ -148,6 +148,34 @@ export const PRESETS: Preset[] = [
   },
   // ---- Content
   {
+    id: "word-cloud",
+    group: "Content",
+    title: "Word cloud",
+    description: "The 100 words you all use most. Common filler words are hidden; edit the list in the builder.",
+    query: q({ series: [{ id: "s1", metric: "words" }], groupBy: "word", sort: "value", limit: 100, chart: "cloud" }),
+  },
+  {
+    id: "top-words",
+    group: "Content",
+    title: "Most used words",
+    description: "The top 20 words, ranked. Click one to chart it over time or hide it.",
+    query: q({ series: [{ id: "s1", metric: "words" }], groupBy: "word", sort: "value", limit: 20 }),
+  },
+  {
+    id: "words-by-person",
+    group: "Content",
+    title: "Everyone's favourite words",
+    description: "Each person's most used words, side by side.",
+    query: q({ series: [{ id: "s1", metric: "words", split: "word", splitLimit: 5 }], groupBy: "person", sort: "value", limit: 10, chart: "stacked" }),
+  },
+  {
+    id: "emoji-cloud",
+    group: "Emojis & reactions",
+    title: "Emoji cloud",
+    description: "Your 50 most used emojis, sized by how often they're sent.",
+    query: q({ series: [{ id: "s1", metric: "emoji" }], groupBy: "emoji", sort: "value", limit: 50, chart: "cloud" }),
+  },
+  {
     id: "types-over-time",
     group: "Content",
     title: "Your media mix over time",

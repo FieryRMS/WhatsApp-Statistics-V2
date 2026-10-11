@@ -53,13 +53,20 @@ See [docs/msgstore-schema.md](docs/msgstore-schema.md) for the reverse-engineere
    reactions given or received, tags made or received, or active people. Add several to compare
    them on one chart.
 2. **Group by:** day, week, month or year, hour of day, day of week, person, chat, message type,
-   emoji, or a single total. Time axes can also rank the busiest periods.
+   emoji, word, or a single total. Time axes can also rank the busiest periods.
 3. **Filters:** chats, people, message types, dates, words and emojis, for the whole chart or per series.
-   Each series can be **split** into one line per person, chat, type, emoji, weekday, hour or year.
+   Each series can be **split** into one line per person, chat, type, emoji, word, weekday, hour or year.
    The top 7 are shown and the rest fold into "Other".
-4. **Display:** lines, area, bars, stacked bars or a heatmap. Values can be raw, a running total,
+4. **Display:** lines, area, bars, stacked bars, a heatmap or a word cloud. Values can be raw, a running total,
    a share of the total, smoothed, or **indexed to each series' peak**. Use indexing to compare
    series of different sizes on one axis; there are never two y-axes.
+
+**Words and clouds:** group a Words count by word to rank the most used words, or show them as a
+cloud (emoji counts can be drawn as a cloud too). Words are lowercased runs of letters, so Bangla
+script works; links, @tags and bare numbers are left out. Each account has a **hidden words** list
+(`app-data/hidden-words/u<id>.json`). It starts with common English, Banglish and Bangla filler
+words ("in", "to", "the", "ki", "na", …) and is edited in the builder whenever word grouping is on.
+Clicking a word can also chart it over time or hide it.
 
 Click any point, bar, cell or table row to open that moment in the chat. **Back** returns to exactly
 the chart you were on, including edits, zoom, the table view and scroll position.

@@ -5,6 +5,8 @@ import { listChats } from "../whatsapp/queries"
 import { viewer, type ViewerInfo } from "../whatsapp/viewer"
 import { KIND_LIST, ME, dayStart, statsIndex, termMatches, type StatsIndex } from "./stats-index"
 import { normalizeEmoji } from "./emoji"
+import { normalizeWord } from "./stopwords"
+import { wordIndex, type WordIndex } from "./word-index"
 import {
   KINDS,
   MEDIA_KINDS,
@@ -160,16 +162,32 @@ interface Unit {
   ts: number
   day: number
   emoji: number
+  /** Word id (word units only), else -1. */
+  word: number
   weight: number
   /** message id to open for this unit */
   link: number
 }
 
+/** Present when a series is grouped or split by word: the index and the hidden word ids. */
+interface WordUnits {
+  index: WordIndex
+  hidden: Set<number>
+}
+
 type UnitFn = (u: Unit) => void
 
-function forEachUnit(ix: StatsIndex, s: SeriesDef, filters: CompiledFilter[], warnings: string[], grp: Int32Array, cb: UnitFn) {
+function forEachUnit(
+  ix: StatsIndex,
+  s: SeriesDef,
+  filters: CompiledFilter[],
+  warnings: string[],
+  grp: Int32Array,
+  words: WordUnits | null,
+  cb: UnitFn
+) {
   const G = (p: number) => (p >= 0 ? grp[p] : p)
-  const u: Unit = { row: 0, person: 0, ts: 0, day: 0, emoji: -1, weight: 1, link: 0 }
+  const u: Unit = { row: 0, person: 0, ts: 0, day: 0, emoji: -1, word: -1, weight: 1, link: 0 }
   const metric = s.metric
   const emojiMetric = metric === "emoji" || metric === "reactions_given" || metric === "reactions_received"
   const rowsOk = (row: number) => filters.every((f) => rowPasses(ix, f, row, !emojiMetric))
@@ -232,8 +250,22 @@ function forEachUnit(ix: StatsIndex, s: SeriesDef, filters: CompiledFilter[], wa
     u.day = ix.day[row]
     u.link = ix.ids[row]
     u.emoji = -1
+    u.word = -1
     switch (metric) {
       case "words":
+        if (words) {
+          // One unit per use of each word (hidden words left out).
+          const { off, list } = words.index
+          for (let k = off[row]; k < off[row + 1]; k++) {
+            if (words.hidden.has(list[k])) continue
+            u.word = list[k]
+            u.weight = 1
+            cb(u)
+          }
+          return
+        }
+        u.weight = ix.words[row]
+        break
       case "avg_words":
         u.weight = ix.words[row]
         break
@@ -306,6 +338,8 @@ function keyFor(ix: StatsIndex, dim: Dimension | Split, u: Unit): number {
       return ix.kind[u.row]
     case "emoji":
       return u.emoji
+    case "word":
+      return u.word
     case "none":
       return 0
   }
@@ -361,7 +395,14 @@ function chatLabels(): Map<string, string> {
   return new Map(listChats().map((c) => [c.jid, c.name]))
 }
 
-function labelFor(ix: StatsIndex, dim: Dimension | Split, key: number, chats: Map<string, string>, v: ViewerInfo = viewer()): string {
+function labelFor(
+  ix: StatsIndex,
+  dim: Dimension | Split,
+  key: number,
+  chats: Map<string, string>,
+  v: ViewerInfo = viewer(),
+  vocab: string[] = []
+): string {
   switch (dim) {
     case "day": {
       const d = new Date(key * DAY_MS)
@@ -387,6 +428,8 @@ function labelFor(ix: StatsIndex, dim: Dimension | Split, key: number, chats: Ma
       return KINDS[KIND_LIST[key]] ?? "Other"
     case "emoji":
       return ix.emojis[key] ?? "?"
+    case "word":
+      return vocab[key] ?? "?"
     case "none":
       return "Total"
   }
@@ -425,10 +468,28 @@ function seriesBaseLabel(s: SeriesDef): string {
 // Run
 // ---------------------------------------------------------------------------
 
-export function runQuery(query: StatQuery): StatResult {
+export interface RunOptions {
+  /** Words left out of word statistics (the viewer account's hidden-words list). */
+  hiddenWords?: string[]
+}
+
+export function runQuery(query: StatQuery, opts: RunOptions = {}): StatResult {
   const started = Date.now()
   const { index: ix, fresh } = statsIndex()
   const warnings: string[] = []
+  // Word grouping/splitting needs the word index (built on first use, then cached).
+  const usesWords = query.groupBy === "word" || query.series.some((s) => s.split === "word")
+  let words: WordUnits | null = null
+  let wordsMs: number | null = null
+  if (usesWords) {
+    const w = wordIndex()
+    if (w.fresh) wordsMs = w.words.builtMs
+    const hidden = new Set((opts.hiddenWords ?? []).map(normalizeWord))
+    const hiddenIds = new Set<number>()
+    if (hidden.size) w.words.vocab.forEach((word, id) => hidden.has(word) && hiddenIds.add(id))
+    words = { index: w.words, hidden: hiddenIds }
+  }
+  const vocab = words?.index.vocab ?? []
   const chats = chatLabels()
   const dim = query.groupBy
   const isTime = isTimeDimension(dim)
@@ -452,14 +513,19 @@ export function runQuery(query: StatQuery): StatResult {
     if (dim === "emoji" && !["emoji", "reactions_given", "reactions_received"].includes(def.metric)) {
       warnings.push(`"${seriesBaseLabel(def)}" has no emojis to group by — pick an emoji or reaction metric.`)
     }
+    const byWord = dim === "word" || split === "word"
+    if (byWord && def.metric !== "words") {
+      warnings.push(`"${seriesBaseLabel(def)}": grouping or splitting by word needs the Words metric.`)
+      continue
+    }
     const local = compile(ix, def.filters, warnings, grp)
     const filters = def.metric === "term" ? [global, { ...local, termRows: null }] : [global, local]
     const distinct = def.metric === "active_people"
     const bySplit = new Map<number, Map<number, Acc>>()
-    forEachUnit(ix, def, filters, warnings, grp, (u) => {
+    forEachUnit(ix, def, filters, warnings, grp, byWord ? words : null, (u) => {
       const sk = split ? keyFor(ix, split, u) : 0
       const bk = keyFor(ix, dim, u)
-      if (bk < 0 && (dim === "emoji" || dim === "person")) return
+      if (bk < 0 && (dim === "emoji" || dim === "person" || dim === "word")) return
       let buckets = bySplit.get(sk)
       if (!buckets) bySplit.set(sk, (buckets = new Map()))
       let acc = buckets.get(bk)
@@ -479,7 +545,7 @@ export function runQuery(query: StatQuery): StatResult {
     const kept = ranked.slice(0, keep)
     if (split === "weekday" || split === "hour" || split === "year") kept.sort((a, b) => a.k - b.k)
     for (const r of kept) {
-      built.push({ def, splitKey: r.k, splitLabel: labelFor(ix, split, r.k, chats), buckets: r.b, total: r.total })
+      built.push({ def, splitKey: r.k, splitLabel: labelFor(ix, split, r.k, chats, undefined, vocab), buckets: r.b, total: r.total })
     }
     if (ranked.length > keep) {
       const other = new Map<number, Acc>()
@@ -523,7 +589,7 @@ export function runQuery(query: StatQuery): StatResult {
     keys = [...allKeys].sort((a, b) => score(b) - score(a)).slice(0, query.limit)
   }
 
-  const categories: ResultCategory[] = keys.map((k) => ({ key: String(k), label: labelFor(ix, dim, k, chats), ...timeRange(dim, k) }))
+  const categories: ResultCategory[] = keys.map((k) => ({ key: String(k), label: labelFor(ix, dim, k, chats, undefined, vocab), ...timeRange(dim, k) }))
 
   // ---- series ----
   let slot = 0
@@ -564,7 +630,11 @@ export function runQuery(query: StatQuery): StatResult {
     unit,
     chart: resolveChart(query, isTime, series.length),
     isTime,
-    stats: { messages: ix.n, ms: Date.now() - started, indexMs: fresh ? ix.builtMs : null },
+    stats: {
+      messages: ix.n,
+      ms: Date.now() - started,
+      indexMs: fresh || wordsMs != null ? (fresh ? ix.builtMs : 0) + (wordsMs ?? 0) : null,
+    },
     warnings: [
       ...new Set(warnings),
       ...(query.series.some((s) => s.metric === "avg_words") ? [`Averages only count people/periods with at least ${MIN_AVG_SAMPLE} messages.`] : []),
@@ -590,6 +660,8 @@ function unitOf(q: StatQuery): string {
 
 function resolveChart(q: StatQuery, isTime: boolean, n: number): StatResult["chart"] {
   if (q.chart === "heatmap" && n > 1) return "heatmap"
+  // Clouds show one series of words or emoji; anything else falls back to bars.
+  if (q.chart === "cloud") return (q.groupBy === "word" || q.groupBy === "emoji") && n === 1 ? "cloud" : "bar"
   if (q.chart !== "auto" && q.chart !== "heatmap") return q.chart
   if (isTime && q.sort === "key") return n === 1 ? "area" : "line"
   return n > 1 && q.series.some((s) => s.split) ? "stacked" : "bar"

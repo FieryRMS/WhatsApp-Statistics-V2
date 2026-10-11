@@ -39,6 +39,11 @@ export function describeSeries(s: SeriesDef, catalog: StatsCatalog): string {
 
 export function describeQuery(q: StatQuery, catalog: StatsCatalog): string {
   const what = q.series.map((s) => describeSeries(s, catalog)).join(" vs ")
+  // "Words by word" reads oddly; say what the ranking is.
+  if (q.groupBy === "word" && q.series.length === 1 && q.series[0].metric === "words" && !q.series[0].label) {
+    const bits = describeFilters(q.series[0].filters, catalog).concat(describeFilters(q.filters, catalog))
+    return `The ${q.limit} most used words${bits.length ? `, ${bits.join(", ")}` : ""} (hidden words left out).`
+  }
   const by =
     q.groupBy === "none"
       ? ""

@@ -41,7 +41,7 @@ export const statQuerySchema = z
     series: z.array(series).min(1).max(8),
     groupBy: z.enum(keys(DIMENSIONS)),
     filters: filters.default({}),
-    chart: z.enum(["auto", "line", "area", "bar", "stacked", "heatmap"]).default("auto"),
+    chart: z.enum(["auto", "line", "area", "bar", "stacked", "heatmap", "cloud"]).default("auto"),
     transform: z.enum(keys(TRANSFORMS)).default("none"),
     limit: z.number().int().min(1).max(100).default(20),
     sort: z.enum(["key", "value"]).default("key"),

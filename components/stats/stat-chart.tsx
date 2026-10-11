@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils"
 import { EmojiText } from "@/components/emoji/emoji-text"
 import { emojiSrc } from "@/lib/emoji/sequence"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { CloudChart } from "./cloud-chart"
 
 export const seriesColor = (slot: number) =>
   slot === 0 ? "var(--series-other)" : `var(--series-${slot})`
@@ -150,7 +151,7 @@ export function ChartLegend({
   )
 }
 
-const CATEGORICAL = new Set(["person", "chat", "emoji", "kind", "none"])
+const CATEGORICAL = new Set(["person", "chat", "emoji", "word", "kind", "none"])
 
 export type Zoom = [start: number, end: number] | null
 
@@ -286,6 +287,8 @@ export function StatChart({
 
   if (result.chart === "heatmap")
     return <Heatmap result={result} onSelect={onSelect} />
+  if (result.chart === "cloud")
+    return <CloudChart result={result} onSelect={onSelect} height={height} />
 
   const tick = { fontSize: 11, fill: "var(--muted-foreground)" }
   const grid = (

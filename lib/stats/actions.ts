@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache"
 
 import { requireSession, withData } from "../access/dal"
 import { sanitizeForViewer } from "./engine"
+import { writeHiddenWords } from "./hidden-words"
 import { deleteSaved, saveQuery } from "./saved"
 import { parseQuery } from "./schema"
+import { DEFAULT_HIDDEN_WORDS } from "./stopwords"
 
 export interface SaveResult {
   error?: string
@@ -42,4 +44,11 @@ export async function deleteStatAction(id: number): Promise<SaveResult> {
   if (!deleteSaved(id, user)) return { error: "You can only delete your own statistics." }
   revalidatePath("/stats")
   return {}
+}
+
+/** Replaces the caller's hidden-words list (null restores the defaults). Returns the saved list. */
+export async function saveHiddenWordsAction(words: string[] | null): Promise<{ words: string[] }> {
+  const { user } = await requireSession()
+  const list = words === null ? DEFAULT_HIDDEN_WORDS : Array.isArray(words) ? words.filter((w) => typeof w === "string") : []
+  return { words: writeHiddenWords(user.id, list.slice(0, 5000)) }
 }

@@ -1,6 +1,7 @@
 import { StatsWorkbench, type SavedSummary } from "@/components/stats/stats-workbench"
 import { requireSession, withData } from "@/lib/access/dal"
 import { sanitizeForViewer, statsCatalog } from "@/lib/stats/engine"
+import { readHiddenWords } from "@/lib/stats/hidden-words"
 import { PRESETS } from "@/lib/stats/presets"
 import { getSaved, listSaved } from "@/lib/stats/saved"
 import { decodeQuery, parseQuery } from "@/lib/stats/schema"
@@ -76,6 +77,7 @@ export default async function StatsPage(props: PageProps<"/stats">) {
       saved={saved}
       notice={notice}
       viewerIsAdmin={user.role === "admin"}
+      hiddenWords={readHiddenWords(user.id)}
     />
   )
 }

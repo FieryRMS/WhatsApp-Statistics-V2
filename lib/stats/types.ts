@@ -37,13 +37,14 @@ export const DIMENSIONS = {
   chat: { label: "Chat", group: "Category" },
   kind: { label: "Message type", group: "Category" },
   emoji: { label: "Emoji", group: "Category" },
+  word: { label: "Word", group: "Category" },
   none: { label: "Total", group: "Category" },
 } as const
 export type Dimension = keyof typeof DIMENSIONS
 export type TimeDimension = (typeof TIME_DIMENSIONS)[number]
 
 /** Dimensions a series can be split by (one line/segment per value). */
-export const SPLITS = ["person", "chat", "kind", "emoji", "weekday", "hour", "year"] as const
+export const SPLITS = ["person", "chat", "kind", "emoji", "word", "weekday", "hour", "year"] as const
 export type Split = (typeof SPLITS)[number]
 
 export const KINDS = {
@@ -95,7 +96,7 @@ export interface SeriesDef {
   splitLimit?: number
 }
 
-export type ChartType = "auto" | "line" | "area" | "bar" | "stacked" | "heatmap"
+export type ChartType = "auto" | "line" | "area" | "bar" | "stacked" | "heatmap" | "cloud"
 export type Transform = "none" | "cumulative" | "percent" | "rolling" | "index"
 
 export const TRANSFORMS: Record<Transform, { label: string; description: string }> = {
@@ -208,6 +209,8 @@ export const METRIC_PERSON: Record<Metric, string> = {
 /** Is `dim` meaningful for `metric`? (The emoji axis needs emoji or reaction units.) */
 export function dimensionAllowed(metric: Metric, dim: Dimension | Split): boolean {
   if (dim === "emoji") return metric === "emoji" || metric === "reactions_given" || metric === "reactions_received"
+  // Word grouping counts each use of each word, so it needs the Words metric.
+  if (dim === "word") return metric === "words"
   if (metric === "active_people" && dim === "person") return false
   return true
 }

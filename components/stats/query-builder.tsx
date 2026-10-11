@@ -4,6 +4,7 @@ import * as React from "react"
 import { ChevronDown, Filter, Plus, Trash2 } from "lucide-react"
 
 import { FiltersEditor, clean, countFilters } from "./filters-editor"
+import { HiddenWordsEditor } from "./hidden-words-editor"
 import { seriesColor } from "./stat-chart"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -210,6 +211,9 @@ function SeriesCard({
                   {sp === "emoji" &&
                     !emojiCapable &&
                     " (emoji/reaction counts only)"}
+                  {sp === "word" &&
+                    series.metric !== "words" &&
+                    " (Words count only)"}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -294,7 +298,10 @@ function SeriesCard({
 const DIMENSION_GROUPS: { label: string; dims: Dimension[] }[] = [
   { label: "Over time", dims: ["day", "week", "month", "year"] },
   { label: "Patterns", dims: ["hour", "weekday"] },
-  { label: "Compare", dims: ["person", "chat", "kind", "emoji", "none"] },
+  {
+    label: "Compare",
+    dims: ["person", "chat", "kind", "emoji", "word", "none"],
+  },
 ]
 
 const CHARTS: { value: ChartType; label: string }[] = [
@@ -304,17 +311,26 @@ const CHARTS: { value: ChartType; label: string }[] = [
   { value: "bar", label: "Bars" },
   { value: "stacked", label: "Stacked bars" },
   { value: "heatmap", label: "Heatmap (needs a split)" },
+  { value: "cloud", label: "Word cloud (group by word or emoji)" },
 ]
 
 export function QueryBuilder({
   query,
   onChange,
   catalog,
+  hiddenWords,
+  onHiddenWordsChange,
+  savingWords,
 }: {
   query: StatQuery
   onChange: (q: StatQuery) => void
   catalog: StatsCatalog
+  hiddenWords: string[]
+  onHiddenWordsChange: (words: string[] | null) => void
+  savingWords: boolean
 }) {
+  const usesWords =
+    query.groupBy === "word" || query.series.some((s) => s.split === "word")
   const set = (patch: Partial<StatQuery>) => onChange({ ...query, ...patch })
   const isTime = isTimeDimension(query.groupBy)
   const ranked = !isTime || query.sort === "value"
@@ -400,12 +416,23 @@ export function QueryBuilder({
                     type="button"
                     disabled={!allowed}
                     title={
-                      allowed ? undefined : "Needs an emoji or reaction count"
+                      allowed
+                        ? undefined
+                        : d === "word"
+                          ? "Needs a Words count"
+                          : "Needs an emoji or reaction count"
                     }
                     onClick={() =>
                       set({
                         groupBy: d,
                         sort: isTimeDimension(d) ? "key" : "value",
+                        // A cloud only makes sense for words and emoji.
+                        chart:
+                          query.chart === "cloud" &&
+                          d !== "word" &&
+                          d !== "emoji"
+                            ? "auto"
+                            : query.chart,
                       })
                     }
                     className={cn(
@@ -458,6 +485,15 @@ export function QueryBuilder({
                 </Select>
               </div>
             )}
+          {usesWords && (
+            <div className="mt-2">
+              <HiddenWordsEditor
+                words={hiddenWords}
+                onChange={onHiddenWordsChange}
+                saving={savingWords}
+              />
+            </div>
+          )}
         </div>
       </Section>
 
