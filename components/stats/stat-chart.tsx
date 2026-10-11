@@ -22,6 +22,7 @@ import type { StatResult } from "@/lib/stats/types"
 import { cn } from "@/lib/utils"
 import { EmojiText } from "@/components/emoji/emoji-text"
 import { emojiSrc } from "@/lib/emoji/sequence"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export const seriesColor = (slot: number) =>
   slot === 0 ? "var(--series-other)" : `var(--series-${slot})`
@@ -184,6 +185,8 @@ export function StatChart({
 }) {
   const [drag, setDrag] = React.useState<{ a: number; b: number } | null>(null)
   const [panning, setPanning] = React.useState(false)
+  // Narrow screens: shorter category labels so horizontal bars keep room to draw.
+  const narrow = useIsMobile()
   const wrapRef = React.useRef<HTMLDivElement>(null)
 
   const horizontal =
@@ -491,10 +494,10 @@ export function StatChart({
               <YAxis
                 type="category"
                 {...catAxisProps}
-                width={150}
+                width={narrow ? 112 : 150}
                 interval={0}
                 tickFormatter={(i: number) =>
-                  truncate(categoryLabel(result, i, true), 22)
+                  truncate(categoryLabel(result, i, true), narrow ? 10 : 22)
                 }
                 // SVG text can't use the WhatsApp emoji artwork, so the emoji axis draws images.
                 tick={
@@ -564,8 +567,29 @@ function EmojiAxisTick({
   )
 }
 
+const graphemes =
+  typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+    : null
+
+/**
+ * Shorten to roughly `n` letters' width by whole characters, so an emoji (or flag, or
+ * ZWJ sequence) is never cut in half. Emoji and other wide characters count double.
+ */
 function truncate(s: string, n: number) {
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s
+  const chars = graphemes
+    ? Array.from(graphemes.segment(s), (g) => g.segment)
+    : Array.from(s)
+  const width = (c: string) => (c.codePointAt(0)! > 0x2000 ? 2 : 1)
+  if (chars.reduce((w, c) => w + width(c), 0) <= n) return s
+  let used = 1 // room for the ellipsis
+  let out = ""
+  for (const c of chars) {
+    if (used + width(c) > n) break
+    used += width(c)
+    out += c
+  }
+  return `${out}…`
 }
 
 /** Rows = series (e.g. weekdays), columns = categories (e.g. hours). One hue, light → dark. */

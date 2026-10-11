@@ -53,6 +53,7 @@ import {
   type StatResult,
   type StatsCatalog,
 } from "@/lib/stats/types"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { EmojiText } from "@/components/emoji/emoji-text"
 
@@ -113,6 +114,9 @@ export function StatsWorkbench({
   const [view, setView] = React.useState<"chart" | "table">(initialView)
   const [selection, setSelection] = React.useState<Selection | null>(null)
   const [zoom, setZoom] = React.useState<Zoom>(null)
+  const narrow = useIsMobile()
+  /** Phones show one panel at a time. */
+  const [panel, setPanel] = React.useState<"chart" | "build">("chart")
   const [dialog, setDialog] = React.useState<
     "presets" | "saved" | "save" | null
   >(null)
@@ -211,6 +215,7 @@ export function StatsWorkbench({
   }
 
   const load = (q: StatQuery, s: SavedSummary | null = null) => {
+    setPanel("chart")
     changeQuery(q)
     setCurrent(s)
     setDialog(null)
@@ -264,23 +269,64 @@ export function StatsWorkbench({
           size="sm"
           onClick={() => setDialog("presets")}
         >
-          <Sparkles /> Ideas
+          <Sparkles /> <span className="hidden sm:inline">Ideas</span>
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setDialog("saved")}>
-          <Bookmark /> Saved{saved.length ? ` (${saved.length})` : ""}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setDialog("saved")}
+          aria-label="Saved statistics"
+        >
+          <Bookmark />{" "}
+          <span className="hidden sm:inline">
+            Saved{saved.length ? ` (${saved.length})` : ""}
+          </span>
         </Button>
-        <Button variant="outline" size="sm" onClick={copyLink}>
-          <Link2 /> Copy link
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={copyLink}
+          aria-label="Copy link"
+        >
+          <Link2 /> <span className="hidden sm:inline">Copy link</span>
         </Button>
         <Button size="sm" onClick={() => setDialog("save")}>
           Save
         </Button>
       </header>
 
+      {/* Phones: one panel at a time (side by side doesn't fit). */}
+      <div
+        className="flex border-b bg-sidebar p-1 lg:hidden"
+        role="tablist"
+        aria-label="Statistics view"
+      >
+        {(["chart", "build"] as const).map((p) => (
+          <button
+            key={p}
+            type="button"
+            role="tab"
+            aria-selected={panel === p}
+            onClick={() => setPanel(p)}
+            className={cn(
+              "flex-1 rounded-md py-1.5 text-sm",
+              panel === p
+                ? "bg-background font-medium shadow-sm"
+                : "text-muted-foreground"
+            )}
+          >
+            {p === "chart" ? "Chart" : "Build"}
+          </button>
+        ))}
+      </div>
+
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <aside
           ref={asideRef}
-          className="shrink-0 overflow-y-auto border-b p-4 lg:w-[400px] lg:border-r lg:border-b-0"
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto p-4 lg:w-[400px] lg:flex-none lg:border-r",
+            panel === "build" ? "block" : "hidden lg:block"
+          )}
         >
           <div className="mb-4 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
@@ -300,11 +346,19 @@ export function StatsWorkbench({
             onChange={changeQuery}
             catalog={catalog}
           />
+          <div className="sticky bottom-0 -mx-4 mt-6 -mb-4 border-t bg-background/95 p-3 backdrop-blur lg:hidden">
+            <Button className="w-full" onClick={() => setPanel("chart")}>
+              <BarChart3 /> View chart
+            </Button>
+          </div>
         </aside>
 
         <main
           ref={mainRef}
-          className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6"
+          className={cn(
+            "min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6",
+            panel === "chart" ? "flex" : "hidden lg:flex"
+          )}
         >
           {notice && (
             <Alert>
@@ -403,9 +457,9 @@ export function StatsWorkbench({
                       view === "chart" && (
                         <>
                           {" "}
-                          Zoom: drag across the chart, Ctrl+scroll or pinch, or
-                          use the slider. Shift+drag to pan; double-click to
-                          zoom out.
+                          {narrow
+                            ? "Zoom with the slider under the chart."
+                            : "Zoom: drag across the chart, Ctrl+scroll or pinch, or use the slider. Shift+drag to pan; double-click to zoom out."}
                         </>
                       )}
                   </p>
