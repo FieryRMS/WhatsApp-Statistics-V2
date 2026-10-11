@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Eye, EyeOff, RotateCcw, Search } from "lucide-react"
+import { Eye, EyeOff, Link2, RotateCcw, Search } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import type { NameRow } from "@/lib/names/rows"
 import { cn } from "@/lib/utils"
 
 type Draft = { kind: "name"; value: string } | { kind: "hide" } | { kind: "reset" }
-type Filter = "all" | "named" | "hidden" | "custom"
+type Filter = "all" | "named" | "hidden" | "custom" | "merged"
 
 const PAGE = 150
 
@@ -53,6 +53,7 @@ export function NamesEditor({
     if (filter === "named" && !(r.inMapping ? r.mapped : r.shown !== r.phone)) return false
     if (filter === "hidden" && !(r.inMapping && r.mapped === null)) return false
     if (filter === "custom" && !r.inMapping) return false
+    if (filter === "merged" && r.mergedWith.length === 0) return false
     if (!q) return true
     return (
       r.jid.includes(q) ||
@@ -79,13 +80,17 @@ export function NamesEditor({
           ? "This account sees only the names listed here. Clear a name (or hide it) to show the phone number instead."
           : "Names here override the automatic names (address book, push names…). Hide a name to show the phone number; reset to go back to the automatic name."}
       </p>
+      <p className="rounded-md bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+        <strong className="font-medium text-foreground">Same person, several numbers?</strong> Give them exactly the same name here.
+        They&apos;ll count as one person in statistics, and choosing either as “Who&apos;s viewing” makes both “You”.
+      </p>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-56 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or number" className="pl-8" />
         </div>
-        {(["all", "named", "hidden", "custom"] as Filter[]).map((f) => (
+        {(["all", "named", "hidden", "custom", "merged"] as Filter[]).map((f) => (
           <button
             key={f}
             type="button"
@@ -95,7 +100,17 @@ export function NamesEditor({
               filter === f ? "bg-wa-accent/15 font-medium text-wa-accent" : "bg-muted text-muted-foreground hover:text-foreground"
             )}
           >
-            {f === "all" ? `All (${rows.length})` : f === "named" ? "Named" : f === "hidden" ? "Hidden" : namesOnly ? "In file" : "Custom"}
+            {f === "all"
+              ? `All (${rows.length})`
+              : f === "named"
+                ? "Named"
+                : f === "hidden"
+                  ? "Hidden"
+                  : f === "merged"
+                    ? `Same person (${rows.filter((r) => r.mergedWith.length).length})`
+                    : namesOnly
+                      ? "In file"
+                      : "Custom"}
           </button>
         ))}
       </div>
@@ -126,6 +141,11 @@ export function NamesEditor({
                     Now: {r.shown}
                     {canReset && r.suggestion && r.suggestion !== r.shown && <> · automatic: {r.suggestion}</>}
                   </div>
+                  {r.mergedWith.length > 0 && (
+                    <div className="mt-0.5 flex items-center gap-1 truncate text-xs text-wa-accent">
+                      <Link2 className="size-3 shrink-0" /> Same person as {r.mergedWith.join(", ")}
+                    </div>
+                  )}
                 </div>
                 <Input
                   value={value}

@@ -109,6 +109,13 @@ The account edits it on its **Contact names** page, and admins edit the same fil
 - **Admins** see automatic names, with their own mapping applied on top as overrides. An admin's
   mapping starts empty, and "reset" returns a person to their automatic name.
 
+**Same person, several numbers:** give two or more numbers *exactly the same name* in an account's
+mapping and they count as one person for that account. Statistics combine them (rankings, splits,
+filters, active-people counts), and choosing either one in "Who's viewing" makes all of them "You".
+Only names set in the mapping merge people; automatic names never do. For the same reason, when a
+mapping is seeded, a name that's already taken gets the number's last digits appended, e.g.
+`Mohsin Hossain (…4521)`. The Contact names editor lists merged people under **Same person**.
+
 Accounts live in `app-data/app.db` (gitignored). Use `WHATSAPP_APP_DATA_DIR` to put them elsewhere.
 
 `next dev` and `next start` listen on every network interface by default. Use `-H 127.0.0.1` to keep

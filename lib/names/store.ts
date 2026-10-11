@@ -55,15 +55,27 @@ export function writeNames(userId: number, map: NameMap) {
   invalidateNames(file)
 }
 
-/** Add entries for keys not yet in the file; never touches existing entries. Returns how many were added. */
+/**
+ * Add entries for keys not yet in the file; never touches existing entries.
+ * Identical names mean "same person" (they're merged in statistics), so a
+ * seeded name that's already taken gets the number's last digits appended —
+ * seeding must never merge people on its own. Returns how many were added.
+ */
 export function seedNames(userId: number, seed: NameMap): number {
   const current = readNames(userId) ?? {}
+  const usedBy = new Map<string, string>()
+  for (const [jid, name] of Object.entries(current)) if (typeof name === "string") usedBy.set(name.trim(), jid)
   let added = 0
   for (const [jid, name] of Object.entries(seed)) {
-    if (!(jid in current)) {
-      current[jid] = name
-      added++
+    if (jid in current) continue
+    let value = name
+    if (typeof value === "string") {
+      const taken = usedBy.get(value.trim())
+      if (taken && taken !== jid) value = `${value} (…${jid.split("@")[0].slice(-4)})`
+      usedBy.set(value.trim(), jid)
     }
+    current[jid] = value
+    added++
   }
   if (added || !fs.existsSync(namesFile(userId))) writeNames(userId, current)
   return added

@@ -368,3 +368,41 @@ export function ownerName(): string | null {
   const entry = names().get(OWNER_KEY)
   return entry?.mapped && entry.name ? entry.name : null
 }
+
+/**
+ * People merged by the account's name mapping: JIDs given exactly the same
+ * name there are the same person (e.g. someone's two numbers). Only explicit
+ * mapping entries count — automatic names never merge anyone.
+ *
+ * Returns jid → the group's representative JID (the alphabetically first member).
+ */
+export function personGroups(): Map<string, string> {
+  return cached("personGroups", () => {
+    const byName = new Map<string, string[]>()
+    for (const [jid, entry] of names()) {
+      if (!entry.mapped || !entry.name || !jid.includes("@")) continue
+      const key = entry.known ? entry.name : `~${entry.name}`
+      byName.set(key, [...(byName.get(key) ?? []), jid])
+    }
+    const groups = new Map<string, string>()
+    for (const members of byName.values()) {
+      if (members.length < 2) continue
+      const rep = [...members].sort()[0]
+      for (const m of members) groups.set(m, rep)
+    }
+    return groups
+  })
+}
+
+/** The representative JID for `jid` (itself when not merged). */
+export function samePerson(jid: string): string {
+  const id = canonicalJid(jid)
+  return personGroups().get(id) ?? id
+}
+
+/** Every JID merged with `jid` (including itself). */
+export function personMembers(jid: string): string[] {
+  const rep = samePerson(jid)
+  const members = [...personGroups()].filter(([, r]) => r === rep).map(([m]) => m)
+  return members.length ? members : [canonicalJid(jid)]
+}

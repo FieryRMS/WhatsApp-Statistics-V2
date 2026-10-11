@@ -11,6 +11,8 @@ export interface PickerPerson {
   jid: string
   name: string
   messages: number
+  /** Identities merged into this person (same name in the contact names). */
+  numbers?: number
 }
 
 /**
@@ -75,7 +77,8 @@ export function ViewerPicker({
         {!q && row(null, ownerLabel, "The person whose phone this data came from", <Smartphone className="size-4 text-muted-foreground" />)}
         {visible.map((p) => {
           // Same name can belong to several identities (e.g. an unlinked privacy ID), so show the number too.
-          const id = p.jid.endsWith("@s.whatsapp.net") ? `+${p.jid.split("@")[0]}` : "privacy ID"
+          const id =
+            (p.numbers ?? 1) > 1 ? `${p.numbers} numbers combined` : p.jid.endsWith("@s.whatsapp.net") ? `+${p.jid.split("@")[0]}` : "privacy ID"
           return row(p.jid, p.name, `${id} · ${p.messages.toLocaleString()} messages`)
         })}
         {visible.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted-foreground">Nobody matches</li>}

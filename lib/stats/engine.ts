@@ -1,6 +1,6 @@
 import "server-only"
 
-import { canonicalJid, chatName, participant } from "../whatsapp/contacts"
+import { canonicalJid, chatName, participant, samePerson } from "../whatsapp/contacts"
 import { listChats } from "../whatsapp/queries"
 import { viewer, type ViewerInfo } from "../whatsapp/viewer"
 import { KIND_LIST, ME, dayStart, statsIndex, termMatches, type StatsIndex } from "./stats-index"
@@ -52,7 +52,7 @@ interface CompiledFilter {
   emojiSet: Set<number> | null
 }
 
-function compile(ix: StatsIndex, f: Filters | undefined, warnings: string[]): CompiledFilter {
+function compile(ix: StatsIndex, f: Filters | undefined, warnings: string[], grp: Int32Array): CompiledFilter {
   const flags = (len: number, idxs: number[]) => {
     const a = new Uint8Array(len)
     for (const i of idxs) if (i >= 0) a[i] = 1
@@ -63,7 +63,7 @@ function compile(ix: StatsIndex, f: Filters | undefined, warnings: string[]): Co
   const emojiIdx = new Map(ix.emojis.map((e, i) => [e, i]))
   return {
     chatOk: f?.chats?.length ? flags(ix.chats.length, f.chats.map((c) => chatIdx.get(c) ?? -1)) : null,
-    personOk: f?.people?.length ? flags(ix.people.length, f.people.map((p) => personIndex(ix, personIdx, p))) : null,
+    personOk: f?.people?.length ? flags(ix.people.length, f.people.map((p) => personIndex(ix, personIdx, p, grp))) : null,
     kindOk: f?.kinds?.length ? flags(KIND_LIST.length, f.kinds.map((k) => KIND_LIST.indexOf(k))) : null,
     from: f?.from ?? null,
     to: f?.to ?? null,
@@ -79,13 +79,44 @@ function compile(ix: StatsIndex, f: Filters | undefined, warnings: string[]): Co
  */
 export const VIEWER = "viewer"
 
-function personIndex(ix: StatsIndex, personIdx: Map<string, number>, p: string): number {
-  if (p === ME) return 0
-  if (p === VIEWER) {
+function personIndex(ix: StatsIndex, personIdx: Map<string, number>, p: string, grp: Int32Array): number {
+  let idx: number
+  if (p === ME) idx = 0
+  else if (p === VIEWER) {
     const v = viewer()
-    return v.jid ? (personIdx.get(v.jid) ?? -1) : 0
+    idx = v.jid ? (personIdx.get(v.jid) ?? -1) : 0
+  } else idx = personIdx.get(canonicalJid(p)) ?? -1
+  return idx >= 0 ? grp[idx] : -1
+}
+
+/**
+ * Person index → index of its merged group's representative. People given
+ * exactly the same name in the account's mapping count as one person.
+ */
+function personGroupsFor(ix: StatsIndex): Int32Array {
+  const grp = new Int32Array(ix.people.length)
+  const repIdx = new Map<string, number>()
+  for (let i = 0; i < ix.people.length; i++) {
+    const jid = ix.people[i]
+    if (i === 0 || !jid.includes("@")) {
+      grp[i] = i
+      continue
+    }
+    const rep = samePerson(jid)
+    const existing = repIdx.get(rep)
+    if (existing === undefined) {
+      repIdx.set(rep, i)
+      grp[i] = i
+    } else grp[i] = existing
   }
-  return personIdx.get(canonicalJid(p)) ?? -1
+  return grp
+}
+
+/** How many identities each group representative stands for. */
+function groupSizes(grp: Int32Array): Int32Array {
+  const sizes = new Int32Array(grp.length)
+  for (let i = 0; i < grp.length; i++) sizes[grp[i]]++
+  return sizes
 }
 
 /** Display name of a person index for the current viewer. */
@@ -93,7 +124,7 @@ function personLabel(ix: StatsIndex, key: number, v: ViewerInfo): string {
   if (key < 0) return "Unknown"
   if (key === 0) return v.jid ? v.ownerLabel : "You"
   const jid = ix.people[key]
-  if (v.jid && jid === v.jid) return "You"
+  if (v.jids.has(jid)) return "You"
   return participant(jid).name
 }
 
@@ -129,7 +160,8 @@ interface Unit {
 
 type UnitFn = (u: Unit) => void
 
-function forEachUnit(ix: StatsIndex, s: SeriesDef, filters: CompiledFilter[], warnings: string[], cb: UnitFn) {
+function forEachUnit(ix: StatsIndex, s: SeriesDef, filters: CompiledFilter[], warnings: string[], grp: Int32Array, cb: UnitFn) {
+  const G = (p: number) => (p >= 0 ? grp[p] : p)
   const u: Unit = { row: 0, person: 0, ts: 0, day: 0, emoji: -1, weight: 1, link: 0 }
   const metric = s.metric
   const emojiMetric = metric === "emoji" || metric === "reactions_given" || metric === "reactions_received"
@@ -141,7 +173,7 @@ function forEachUnit(ix: StatsIndex, s: SeriesDef, filters: CompiledFilter[], wa
     const R = ix.reactions
     for (let r = 0; r < R.n; r++) {
       const row = R.row[r]
-      const person = metric === "reactions_given" ? R.person[r] : ix.person[row]
+      const person = G(metric === "reactions_given" ? R.person[r] : ix.person[row])
       if (!rowsOk(row) || !unitOk(person, R.ts[r]) || !emojiOk(R.emoji[r])) continue
       u.row = row
       u.person = person
@@ -159,7 +191,7 @@ function forEachUnit(ix: StatsIndex, s: SeriesDef, filters: CompiledFilter[], wa
     const M = ix.mentions
     for (let m = 0; m < M.n; m++) {
       const row = M.row[m]
-      const person = metric === "mentions_received" ? M.person[m] : ix.person[row]
+      const person = G(metric === "mentions_received" ? M.person[m] : ix.person[row])
       if (!rowsOk(row) || !unitOk(person, ix.ts[row])) continue
       u.row = row
       u.person = person
@@ -185,7 +217,7 @@ function forEachUnit(ix: StatsIndex, s: SeriesDef, filters: CompiledFilter[], wa
   const mediaKinds = new Set(MEDIA_KINDS.map((k) => KIND_LIST.indexOf(k)))
 
   const visit = (row: number) => {
-    const person = ix.person[row]
+    const person = G(ix.person[row])
     if (!unitOk(person, ix.ts[row]) || !rowsOk(row)) return
     u.row = row
     u.person = person
@@ -393,7 +425,8 @@ export function runQuery(query: StatQuery): StatResult {
   const chats = chatLabels()
   const dim = query.groupBy
   const isTime = isTimeDimension(dim)
-  const global = compile(ix, query.filters, warnings)
+  const grp = personGroupsFor(ix)
+  const global = compile(ix, query.filters, warnings, grp)
 
   interface Built {
     def: SeriesDef
@@ -412,11 +445,11 @@ export function runQuery(query: StatQuery): StatResult {
     if (dim === "emoji" && !["emoji", "reactions_given", "reactions_received"].includes(def.metric)) {
       warnings.push(`"${seriesBaseLabel(def)}" has no emojis to group by — pick an emoji or reaction metric.`)
     }
-    const local = compile(ix, def.filters, warnings)
+    const local = compile(ix, def.filters, warnings, grp)
     const filters = def.metric === "term" ? [global, { ...local, termRows: null }] : [global, local]
     const distinct = def.metric === "active_people"
     const bySplit = new Map<number, Map<number, Acc>>()
-    forEachUnit(ix, def, filters, warnings, (u) => {
+    forEachUnit(ix, def, filters, warnings, grp, (u) => {
       const sk = split ? keyFor(ix, split, u) : 0
       const bk = keyFor(ix, dim, u)
       if (bk < 0 && (dim === "emoji" || dim === "person")) return
@@ -597,11 +630,12 @@ export function statsCatalog(): StatsCatalog {
   const v = viewer()
   const chats = chatLabels()
   const chatCount = new Int32Array(ix.chats.length)
+  const grp = personGroupsFor(ix)
   const personCount = new Int32Array(ix.people.length)
   const emojiCount = new Int32Array(ix.emojis.length)
   for (let i = 0; i < ix.n; i++) {
     chatCount[ix.chat[i]]++
-    if (ix.person[i] >= 0) personCount[ix.person[i]]++
+    if (ix.person[i] >= 0) personCount[grp[ix.person[i]]]++
   }
   for (let k = 0; k < ix.emojiList.length; k++) emojiCount[ix.emojiList[k]]++
   for (let r = 0; r < ix.reactions.n; r++) emojiCount[ix.reactions.emoji[r]]++
@@ -611,8 +645,9 @@ export function statsCatalog(): StatsCatalog {
       .filter((c) => c.messages > 0)
       .sort((a, b) => b.messages - a.messages),
     people: ix.people
-      .map((jid, i) => ({ jid, name: personLabel(ix, i, v), messages: personCount[i] }))
-      .filter((p) => p.messages > 0)
+      .map((jid, i) => ({ jid, name: personLabel(ix, i, v), messages: personCount[i], rep: grp[i] === i }))
+      .filter((p) => p.messages > 0 && p.rep)
+      .map(({ rep, ...p }) => (void rep, p))
       .sort((a, b) => b.messages - a.messages),
     emojis: ix.emojis
       .map((emoji, i) => ({ emoji, count: emojiCount[i] }))
@@ -652,12 +687,15 @@ export function sanitizeForViewer(query: StatQuery): { query: StatQuery; removed
 }
 
 /** Everyone who sent messages, with real names (not viewer-relative), busiest first — for "Who's viewing?". */
-export function peopleWithCounts(): { jid: string; name: string; messages: number }[] {
+export function peopleWithCounts(): { jid: string; name: string; messages: number; numbers: number }[] {
   const { index: ix } = statsIndex()
+  const grp = personGroupsFor(ix)
+  const sizes = groupSizes(grp)
   const counts = new Int32Array(ix.people.length)
-  for (let i = 0; i < ix.n; i++) if (ix.person[i] > 0) counts[ix.person[i]]++
+  for (let i = 0; i < ix.n; i++) if (ix.person[i] > 0) counts[grp[ix.person[i]]]++
   return ix.people
-    .map((jid, i) => ({ jid, name: participant(jid).name, messages: counts[i] }))
-    .filter((p, i) => i > 0 && p.messages > 0 && p.jid.includes("@"))
+    .map((jid, i) => ({ jid, name: participant(jid).name, messages: counts[i], numbers: sizes[i], rep: grp[i] === i }))
+    .filter((p, i) => i > 0 && p.rep && p.messages > 0 && p.jid.includes("@"))
+    .map(({ rep, ...p }) => (void rep, p))
     .sort((a, b) => b.messages - a.messages)
 }
