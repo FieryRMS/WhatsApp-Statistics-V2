@@ -6,11 +6,20 @@ import { ArrowDownToLine, ArrowUpToLine, CalendarDays } from "lucide-react"
 import { ChatAvatar } from "./chat-avatar"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { ChatLocation } from "@/lib/whatsapp/anchor"
 import type { ChatDetails } from "@/lib/whatsapp/types"
+import { EmojiText } from "@/components/emoji/emoji-text"
 
 const KIND_LABEL: Record<ChatDetails["kind"], string> = {
   individual: "Chat",
@@ -23,10 +32,19 @@ const KIND_LABEL: Record<ChatDetails["kind"], string> = {
 }
 
 function monthYear(ts: number) {
-  return new Date(ts).toLocaleDateString(undefined, { month: "short", year: "numeric" })
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+  })
 }
 
-function JumpToDate({ chat, onJump }: { chat: ChatDetails; onJump: (loc: ChatLocation) => void }) {
+function JumpToDate({
+  chat,
+  onJump,
+}: {
+  chat: ChatDetails
+  onJump: (loc: ChatLocation) => void
+}) {
   const [open, setOpen] = React.useState(false)
   const first = chat.firstMessageAt ? new Date(chat.firstMessageAt) : undefined
   const last = chat.lastMessageAt ? new Date(chat.lastMessageAt) : undefined
@@ -49,7 +67,9 @@ function JumpToDate({ chat, onJump }: { chat: ChatDetails; onJump: (loc: ChatLoc
           defaultMonth={last}
           startMonth={first}
           endMonth={last}
-          disabled={first && last ? [{ before: first }, { after: last }] : undefined}
+          disabled={
+            first && last ? [{ before: first }, { after: last }] : undefined
+          }
           onSelect={(date) => {
             if (!date) return
             const d = new Date(date)
@@ -63,7 +83,13 @@ function JumpToDate({ chat, onJump }: { chat: ChatDetails; onJump: (loc: ChatLoc
   )
 }
 
-export function ChatHeader({ chat, onJump }: { chat: ChatDetails; onJump: (loc: ChatLocation) => void }) {
+export function ChatHeader({
+  chat,
+  onJump,
+}: {
+  chat: ChatDetails
+  onJump: (loc: ChatLocation) => void
+}) {
   const subtitle = [
     KIND_LABEL[chat.kind],
     `${chat.messageCount.toLocaleString()} messages`,
@@ -79,8 +105,13 @@ export function ChatHeader({ chat, onJump }: { chat: ChatDetails; onJump: (loc: 
       <SidebarTrigger className="md:hidden" />
       <ChatAvatar jid={chat.jid} name={chat.name} kind={chat.kind} />
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-base font-medium">{chat.name}</h1>
-        <p className="truncate text-xs text-muted-foreground" suppressHydrationWarning>
+        <h1 className="truncate text-base font-medium">
+          <EmojiText text={chat.name} />
+        </h1>
+        <p
+          className="truncate text-xs text-muted-foreground"
+          suppressHydrationWarning
+        >
           {subtitle}
         </p>
       </div>
@@ -89,7 +120,12 @@ export function ChatHeader({ chat, onJump }: { chat: ChatDetails; onJump: (loc: 
         {chat.firstMessageAt != null && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Jump to first message" onClick={() => onJump({ at: 0 })}>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Jump to first message"
+                onClick={() => onJump({ at: 0 })}
+              >
                 <ArrowUpToLine />
               </Button>
             </TooltipTrigger>
@@ -98,7 +134,12 @@ export function ChatHeader({ chat, onJump }: { chat: ChatDetails; onJump: (loc: 
         )}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Jump to latest message" onClick={() => onJump({})}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Jump to latest message"
+              onClick={() => onJump({})}
+            >
               <ArrowDownToLine />
             </Button>
           </TooltipTrigger>

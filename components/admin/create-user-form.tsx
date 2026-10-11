@@ -10,7 +10,10 @@ import { Switch } from "@/components/ui/switch"
 import { createUserAction, type AdminFormState } from "@/lib/admin/actions"
 
 export function CreateUserForm() {
-  const [state, action, pending] = useActionState<AdminFormState, FormData>(createUserAction, {})
+  const [state, action, pending] = useActionState<AdminFormState, FormData>(
+    createUserAction,
+    {}
+  )
   return (
     <form action={action} className="grid gap-4 sm:grid-cols-2">
       <div className="grid gap-1.5">
@@ -19,7 +22,14 @@ export function CreateUserForm() {
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="new-password">Initial password</Label>
-        <Input id="new-password" name="password" type="password" autoComplete="new-password" minLength={8} required />
+        <Input
+          id="new-password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          required
+        />
       </div>
       <div className="flex items-center gap-2">
         <Switch id="new-admin" name="role" value="admin" />

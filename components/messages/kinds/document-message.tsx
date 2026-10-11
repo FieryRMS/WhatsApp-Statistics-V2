@@ -19,12 +19,20 @@ const EXT_COLORS: Record<string, string> = {
   apk: "bg-[#3ddc84]",
 }
 
-export function DocumentMessageContent({ message }: { message: DocumentMessage }) {
+export function DocumentMessageContent({
+  message,
+}: {
+  message: DocumentMessage
+}) {
   const { media } = message
   const name = media.fileName ?? "Document"
-  const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : (media.mimeType?.split("/")[1] ?? "file")
+  const ext = name.includes(".")
+    ? name.split(".").pop()!.toLowerCase()
+    : (media.mimeType?.split("/")[1] ?? "file")
   const details = [
-    media.pageCount ? `${media.pageCount} page${media.pageCount === 1 ? "" : "s"}` : null,
+    media.pageCount
+      ? `${media.pageCount} page${media.pageCount === 1 ? "" : "s"}`
+      : null,
     ext.toUpperCase(),
     formatBytes(media.size),
   ].filter(Boolean)

@@ -8,6 +8,23 @@ Built with Next.js, shadcn/ui and Node's built-in `node:sqlite`.
 npm run dev   # http://localhost:3000
 ```
 
+## Setup
+
+```bash
+git clone --recurse-submodules <repo>   # or, in an existing clone:
+git submodule update --init             # fetches vendor/whatsapp-emoji-linux (~80 MB of emoji PNGs)
+npm install
+```
+
+## Emoji
+
+Emoji are drawn with WhatsApp's own artwork from the
+[`whatsapp-emoji-linux`](https://github.com/dmlls/whatsapp-emoji-linux) submodule (`vendor/`),
+not the operating system's emoji font, so they look the same on every device. `/emoji/<codepoints>.png`
+serves its PNGs with a one-year cache, and `components/emoji/emoji-text.tsx` swaps emoji in text for
+those images. Anything missing from the set falls back to the system emoji. The submodule's code is
+Apache-2.0; the emoji artwork itself is WhatsApp's.
+
 ## Data
 
 Everything lives in `whatsapp-data/`. Its contents are gitignored; only the folder is tracked:

@@ -15,7 +15,11 @@ import { cn } from "@/lib/utils"
 const PREFETCH_PX = 1500
 
 function sameSender(a: Message, b: Message) {
-  if (getRenderer(a.kind).layout === "center" || getRenderer(b.kind).layout === "center") return false
+  if (
+    getRenderer(a.kind).layout === "center" ||
+    getRenderer(b.kind).layout === "center"
+  )
+    return false
   if (a.fromMe !== b.fromMe) return false
   return a.fromMe || a.sender?.jid === b.sender?.jid
 }
@@ -42,7 +46,11 @@ function flash(el: Element) {
   el.classList.remove("message-highlight")
   void (el as HTMLElement).offsetWidth // restart the animation
   el.classList.add("message-highlight")
-  el.addEventListener("animationend", () => el.classList.remove("message-highlight"), { once: true })
+  el.addEventListener(
+    "animationend",
+    () => el.classList.remove("message-highlight"),
+    { once: true }
+  )
 }
 
 export function MessageList({
@@ -69,7 +77,10 @@ export function MessageList({
   const stickToBottom = React.useRef(false)
   const [nearBottom, setNearBottom] = React.useState(true)
 
-  const rows = React.useMemo(() => buildRows(stream.messages), [stream.messages])
+  const rows = React.useMemo(
+    () => buildRows(stream.messages),
+    [stream.messages]
+  )
 
   const captureAnchor = React.useCallback(() => {
     const el = scrollRef.current
@@ -88,7 +99,9 @@ export function MessageList({
       } else lo = mid + 1
     }
     const it = items[found]
-    anchor.current = it ? { id: Number(it.dataset.mid), offset: it.offsetTop - el.scrollTop } : null
+    anchor.current = it
+      ? { id: Number(it.dataset.mid), offset: it.offsetTop - el.scrollTop }
+      : null
   }, [])
 
   const { status, loadOlder, loadNewer, hasNewer } = stream
@@ -101,14 +114,17 @@ export function MessageList({
       return
     }
     if (!anchor.current) return
-    const target = el.querySelector<HTMLElement>(`[data-mid="${anchor.current.id}"]`)
+    const target = el.querySelector<HTMLElement>(
+      `[data-mid="${anchor.current.id}"]`
+    )
     if (target) el.scrollTop = target.offsetTop - anchor.current.offset
   }, [])
   const maybeLoad = React.useCallback(() => {
     const el = scrollRef.current
     if (!el || status !== "ready") return
     if (el.scrollTop < PREFETCH_PX) loadOlder()
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < PREFETCH_PX) loadNewer()
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < PREFETCH_PX)
+      loadNewer()
   }, [status, loadOlder, loadNewer])
 
   React.useLayoutEffect(() => {
@@ -116,10 +132,14 @@ export function MessageList({
     if (!el || stream.status !== "ready") return
     if (stream.jumpVersion !== handledJump.current) {
       handledJump.current = stream.jumpVersion
-      const target = stream.targetId != null ? el.querySelector<HTMLElement>(`[data-mid="${stream.targetId}"]`) : null
+      const target =
+        stream.targetId != null
+          ? el.querySelector<HTMLElement>(`[data-mid="${stream.targetId}"]`)
+          : null
       if (target) {
         stickToBottom.current = false
-        el.scrollTop = target.offsetTop - el.clientHeight / 2 + target.offsetHeight / 2
+        el.scrollTop =
+          target.offsetTop - el.clientHeight / 2 + target.offsetHeight / 2
         flash(target.firstElementChild ?? target)
       } else {
         stickToBottom.current = !stream.hasNewer
@@ -130,7 +150,16 @@ export function MessageList({
     }
     captureAnchor()
     maybeLoad()
-  }, [rows, stream.status, stream.jumpVersion, stream.targetId, stream.hasNewer, captureAnchor, maybeLoad, restore])
+  }, [
+    rows,
+    stream.status,
+    stream.jumpVersion,
+    stream.targetId,
+    stream.hasNewer,
+    captureAnchor,
+    maybeLoad,
+    restore,
+  ])
 
   // Late layout changes (web fonts, emoji, images) would otherwise shift what's on screen.
   React.useEffect(() => {
@@ -153,7 +182,11 @@ export function MessageList({
 
   const scrollToBottom = () => {
     if (stream.hasNewer) onJumpToLatest?.()
-    else scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+    else
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      })
   }
 
   return (
@@ -163,11 +196,19 @@ export function MessageList({
         onScroll={onScroll}
         className="relative h-full overflow-x-hidden overflow-y-auto bg-chat-bg [overflow-anchor:none]"
       >
-        <div ref={contentRef} className="flex min-h-full flex-col justify-end pt-2 pb-4">
+        <div
+          ref={contentRef}
+          className="flex min-h-full flex-col justify-end pt-2 pb-4"
+        >
           {stream.status === "ready" &&
             (stream.hasOlder ? (
               <div className="flex justify-center py-3 text-bubble-meta">
-                <Loader2 className={cn("size-5", stream.loadingOlder ? "animate-spin" : "opacity-0")} />
+                <Loader2
+                  className={cn(
+                    "size-5",
+                    stream.loadingOlder ? "animate-spin" : "opacity-0"
+                  )}
+                />
               </div>
             ) : (
               <div className="px-[4%] pt-2 pb-1">
@@ -200,7 +241,12 @@ export function MessageList({
 
           {stream.status === "ready" && stream.hasNewer && (
             <div className="flex justify-center py-3 text-bubble-meta">
-              <Loader2 className={cn("size-5", stream.loadingNewer ? "animate-spin" : "opacity-0")} />
+              <Loader2
+                className={cn(
+                  "size-5",
+                  stream.loadingNewer ? "animate-spin" : "opacity-0"
+                )}
+              />
             </div>
           )}
         </div>
@@ -212,7 +258,9 @@ export function MessageList({
         )}
         {stream.status === "error" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-chat-bg">
-            <p className="text-sm text-muted-foreground">Couldn&apos;t load messages: {stream.error}</p>
+            <p className="text-sm text-muted-foreground">
+              Couldn&apos;t load messages: {stream.error}
+            </p>
             <Button variant="outline" size="sm" onClick={stream.reload}>
               Retry
             </Button>

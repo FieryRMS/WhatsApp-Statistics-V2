@@ -1,0 +1,3 @@
+[submodule "vendor/whatsapp-emoji-linux"]
+	path = vendor/whatsapp-emoji-linux
+	url = https://github.com/dmlls/whatsapp-emoji-linux.git

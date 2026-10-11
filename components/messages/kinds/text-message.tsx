@@ -12,25 +12,45 @@ const READ_MORE_AT = 1200
 function LinkPreviewCard({ preview }: { preview: LinkPreview }) {
   let host: string | null = null
   try {
-    host = preview.url ? new URL(preview.url).hostname.replace(/^www\./, "") : null
+    host = preview.url
+      ? new URL(preview.url).hostname.replace(/^www\./, "")
+      : null
   } catch {}
   const body = (
     <div className="flex overflow-hidden rounded-md bg-black/5 dark:bg-black/20">
       {preview.thumbnailUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={preview.thumbnailUrl} alt="" loading="lazy" className="size-20 shrink-0 object-cover" />
+        <img
+          src={preview.thumbnailUrl}
+          alt=""
+          loading="lazy"
+          className="size-20 shrink-0 object-cover"
+        />
       )}
       <div className="min-w-0 flex-1 px-2.5 py-2">
-        {preview.title && <div className="line-clamp-2 text-[13px] font-medium">{preview.title}</div>}
-        {preview.description && (
-          <div className="line-clamp-2 text-xs text-muted-foreground">{preview.description}</div>
+        {preview.title && (
+          <div className="line-clamp-2 text-[13px] font-medium">
+            {preview.title}
+          </div>
         )}
-        {host && <div className="mt-0.5 truncate text-xs text-bubble-meta">{host}</div>}
+        {preview.description && (
+          <div className="line-clamp-2 text-xs text-muted-foreground">
+            {preview.description}
+          </div>
+        )}
+        {host && (
+          <div className="mt-0.5 truncate text-xs text-bubble-meta">{host}</div>
+        )}
       </div>
     </div>
   )
   return preview.url ? (
-    <a href={preview.url} target="_blank" rel="noopener noreferrer" className="mb-1 block">
+    <a
+      href={preview.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mb-1 block"
+    >
       {body}
     </a>
   ) : (
@@ -41,7 +61,8 @@ function LinkPreviewCard({ preview }: { preview: LinkPreview }) {
 export function TextMessageContent({ message }: { message: TextMessage }) {
   const [expanded, setExpanded] = React.useState(false)
   const long = message.text.length > READ_MORE_AT
-  const text = long && !expanded ? `${message.text.slice(0, READ_MORE_AT)}…` : message.text
+  const text =
+    long && !expanded ? `${message.text.slice(0, READ_MORE_AT)}…` : message.text
   const big = isEmojiOnly(message.text)
 
   return (
@@ -50,10 +71,17 @@ export function TextMessageContent({ message }: { message: TextMessage }) {
       <RichText
         text={text}
         mentions={message.mentions}
-        className={cn("text-[14.2px] leading-[19px]", big && "text-4xl leading-tight")}
+        className={cn(
+          "text-[14.2px] leading-[19px]",
+          big && "text-4xl leading-tight"
+        )}
       />
       {long && !expanded && (
-        <button type="button" onClick={() => setExpanded(true)} className="ml-1 text-[13px] font-medium text-[#027eb5] dark:text-[#53bdeb]">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="ml-1 text-[13px] font-medium text-[#027eb5] dark:text-[#53bdeb]"
+        >
           Read more
         </button>
       )}

@@ -12,10 +12,21 @@ import {
   UnsupportedMessageContent,
   ViewOnceMessageContent,
 } from "./kinds/misc-messages"
-import { AlbumMessageContent, CallMessageContent, PollMessageContent } from "./kinds/interactive-messages"
-import { DisappearingNoticeContent, SystemMessageContent } from "./kinds/system-message"
+import {
+  AlbumMessageContent,
+  CallMessageContent,
+  PollMessageContent,
+} from "./kinds/interactive-messages"
+import {
+  DisappearingNoticeContent,
+  SystemMessageContent,
+} from "./kinds/system-message"
 import { TextMessageContent } from "./kinds/text-message"
-import { GifMessageContent, ImageMessageContent, VideoMessageContent } from "./kinds/visual-media"
+import {
+  GifMessageContent,
+  ImageMessageContent,
+  VideoMessageContent,
+} from "./kinds/visual-media"
 import type { MessageKind, MessageOfKind } from "@/lib/whatsapp/types"
 
 /**
@@ -54,6 +65,8 @@ export const messageRenderers: { [K in MessageKind]: MessageRenderer<K> } = {
   unsupported: { layout: "bubble", Content: UnsupportedMessageContent },
 }
 
-export function getRenderer<K extends MessageKind>(kind: K): MessageRenderer<K> {
+export function getRenderer<K extends MessageKind>(
+  kind: K
+): MessageRenderer<K> {
   return messageRenderers[kind]
 }

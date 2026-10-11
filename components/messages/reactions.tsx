@@ -1,11 +1,23 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { Reaction } from "@/lib/whatsapp/types"
 import { cn } from "@/lib/utils"
+import { EmojiText } from "@/components/emoji/emoji-text"
 
-export function Reactions({ reactions, className }: { reactions: Reaction[]; className?: string }) {
+export function Reactions({
+  reactions,
+  className,
+}: {
+  reactions: Reaction[]
+  className?: string
+}) {
   if (!reactions.length) return null
   const grouped = new Map<string, Reaction[]>()
-  for (const r of reactions) grouped.set(r.emoji, [...(grouped.get(r.emoji) ?? []), r])
+  for (const r of reactions)
+    grouped.set(r.emoji, [...(grouped.get(r.emoji) ?? []), r])
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -16,15 +28,21 @@ export function Reactions({ reactions, className }: { reactions: Reaction[]; cla
           )}
         >
           {[...grouped.keys()].slice(0, 3).map((e) => (
-            <span key={e}>{e}</span>
+            <EmojiText key={e} text={e} />
           ))}
-          {reactions.length > 1 && <span className="ml-0.5 text-xs text-bubble-meta">{reactions.length}</span>}
+          {reactions.length > 1 && (
+            <span className="ml-0.5 text-xs text-bubble-meta">
+              {reactions.length}
+            </span>
+          )}
         </div>
       </TooltipTrigger>
       <TooltipContent>
         {[...grouped.entries()].map(([emoji, rs]) => (
           <div key={emoji}>
-            {emoji} {rs.map((r) => r.sender.name).join(", ")}
+            <EmojiText
+              text={`${emoji} ${rs.map((r) => r.sender.name).join(", ")}`}
+            />
           </div>
         ))}
       </TooltipContent>

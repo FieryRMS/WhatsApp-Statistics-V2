@@ -1,4 +1,11 @@
-import { Bot, CircleDashed, Megaphone, Radio, UserRound, Users } from "lucide-react"
+import {
+  Bot,
+  CircleDashed,
+  Megaphone,
+  Radio,
+  UserRound,
+  Users,
+} from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { avatarColor, initials } from "@/lib/whatsapp/colors"
@@ -30,7 +37,10 @@ export function ChatAvatar({
   return (
     <Avatar className={cn("size-10", className)}>
       <AvatarFallback
-        className={cn("text-sm font-medium text-white", Icon ? "bg-[#8696a0] dark:bg-[#6a7175]" : avatarColor(jid))}
+        className={cn(
+          "text-sm font-medium text-white",
+          Icon ? "bg-[#8696a0] dark:bg-[#6a7175]" : avatarColor(jid)
+        )}
       >
         {Icon ? <Icon className="size-5" /> : label}
       </AvatarFallback>

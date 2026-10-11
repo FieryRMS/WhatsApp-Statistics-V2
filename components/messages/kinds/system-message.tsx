@@ -1,10 +1,22 @@
 import { Lock, Timer } from "lucide-react"
 
 import { formatSystemEvent } from "@/lib/whatsapp/format"
-import type { DisappearingNoticeMessage, SystemMessage } from "@/lib/whatsapp/types"
+import type {
+  DisappearingNoticeMessage,
+  SystemMessage,
+} from "@/lib/whatsapp/types"
 import { cn } from "@/lib/utils"
+import { EmojiText } from "@/components/emoji/emoji-text"
 
-export function SystemChip({ children, className, title }: { children: React.ReactNode; className?: string; title?: string }) {
+export function SystemChip({
+  children,
+  className,
+  title,
+}: {
+  children: React.ReactNode
+  className?: string
+  title?: string
+}) {
   return (
     <div
       title={title}
@@ -23,19 +35,29 @@ export function SystemMessageContent({ message }: { message: SystemMessage }) {
   return (
     <SystemChip
       title={new Date(message.timestamp).toLocaleString()}
-      className={cn(e2e && "bg-[#ffeecd] text-[#54656f] dark:bg-[#182229] dark:text-[#ffd279]")}
+      className={cn(
+        e2e &&
+          "bg-[#ffeecd] text-[#54656f] dark:bg-[#182229] dark:text-[#ffd279]"
+      )}
     >
       {e2e && <Lock className="mr-1 inline size-3 -translate-y-px" />}
-      {formatSystemEvent(message.event)}
+      <EmojiText text={formatSystemEvent(message.event)} />
     </SystemChip>
   )
 }
 
-export function DisappearingNoticeContent({ message }: { message: DisappearingNoticeMessage }) {
+export function DisappearingNoticeContent({
+  message,
+}: {
+  message: DisappearingNoticeMessage
+}) {
   return (
     <SystemChip title={new Date(message.timestamp).toLocaleString()}>
       <Timer className="mr-1 inline size-3.5 -translate-y-px" />
-      {message.fromMe ? "You changed" : `${message.sender?.name ?? "Someone"} changed`} the disappearing messages setting
+      {message.fromMe
+        ? "You changed"
+        : `${message.sender?.name ?? "Someone"} changed`}{" "}
+      the disappearing messages setting
     </SystemChip>
   )
 }

@@ -3,7 +3,11 @@
 import * as React from "react"
 import { ArrowDownToLine, ImageOff } from "lucide-react"
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { MediaInfo } from "@/lib/whatsapp/types"
 import { cn } from "@/lib/utils"
 
@@ -12,12 +16,18 @@ const MAX_H = 360
 const MIN_H = 120
 
 /** Box size for a media item, keeping aspect ratio within WhatsApp-like bounds. */
-export function mediaBox(media: Pick<MediaInfo, "width" | "height">, maxW = MAX_W) {
+export function mediaBox(
+  media: Pick<MediaInfo, "width" | "height">,
+  maxW = MAX_W
+) {
   const w = media.width ?? 0
   const h = media.height ?? 0
   if (!w || !h) return { width: maxW, height: Math.round(maxW * 0.75) }
   const ratio = h / w
-  return { width: maxW, height: Math.round(Math.min(Math.max(maxW * ratio, MIN_H), MAX_H)) }
+  return {
+    width: maxW,
+    height: Math.round(Math.min(Math.max(maxW * ratio, MIN_H), MAX_H)),
+  }
 }
 
 /**
@@ -85,7 +95,11 @@ export function MediaImage({
 }
 
 /** Shown on media whose original file isn't in the media folder (like WhatsApp's "not downloaded"). */
-export function NotDownloadedBadge({ label = "Media file not available" }: { label?: string }) {
+export function NotDownloadedBadge({
+  label = "Media file not available",
+}: {
+  label?: string
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>

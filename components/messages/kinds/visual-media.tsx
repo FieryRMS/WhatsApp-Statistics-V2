@@ -8,10 +8,24 @@ import { MediaFrame, MediaImage, NotDownloadedBadge } from "../media-frame"
 import { MessageMeta } from "../message-meta"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { formatDuration } from "@/lib/whatsapp/format"
-import type { GifMessage, ImageMessage, VideoMessage } from "@/lib/whatsapp/types"
+import type {
+  GifMessage,
+  ImageMessage,
+  VideoMessage,
+} from "@/lib/whatsapp/types"
 
-function OverlayMeta({ message }: { message: ImageMessage | VideoMessage | GifMessage }) {
-  return <MessageMeta message={message} variant="overlay" className="absolute right-1.5 bottom-1.5" />
+function OverlayMeta({
+  message,
+}: {
+  message: ImageMessage | VideoMessage | GifMessage
+}) {
+  return (
+    <MessageMeta
+      message={message}
+      variant="overlay"
+      className="absolute right-1.5 bottom-1.5"
+    />
+  )
 }
 
 /** Full-screen viewer. Falls back to the thumbnail if the original isn't available. */
@@ -54,11 +68,21 @@ export function ImageMessageContent({ message }: { message: ImageMessage }) {
       >
         <MediaImage src={src} alt={message.caption ?? "Photo"} />
       </MediaFrame>
-      {message.caption && <Caption message={message} caption={message.caption} />}
-      <Lightbox open={open} onOpenChange={setOpen} title={message.caption ?? "Photo"}>
+      {message.caption && (
+        <Caption message={message} caption={message.caption} />
+      )}
+      <Lightbox
+        open={open}
+        onOpenChange={setOpen}
+        title={message.caption ?? "Photo"}
+      >
         {src && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt={message.caption ?? ""} className="max-h-[92svh] max-w-[92vw] object-contain" />
+          <img
+            src={src}
+            alt={message.caption ?? ""}
+            className="max-h-[92svh] max-w-[92vw] object-contain"
+          />
         )}
       </Lightbox>
     </div>
@@ -93,12 +117,19 @@ export function VideoMessageContent({ message }: { message: VideoMessage }) {
         }
       >
         {playing && media.url ? (
-          <video src={media.url} controls autoPlay className="absolute inset-0 size-full bg-black object-contain" />
+          <video
+            src={media.url}
+            controls
+            autoPlay
+            className="absolute inset-0 size-full bg-black object-contain"
+          />
         ) : (
           <MediaImage src={media.thumbnailUrl} alt="Video" />
         )}
       </MediaFrame>
-      {message.caption && <Caption message={message} caption={message.caption} />}
+      {message.caption && (
+        <Caption message={message} caption={message.caption} />
+      )}
     </div>
   )
 }
@@ -132,7 +163,9 @@ export function GifMessageContent({ message }: { message: GifMessage }) {
           <MediaImage src={media.thumbnailUrl} alt="GIF" />
         )}
       </MediaFrame>
-      {message.caption && <Caption message={message} caption={message.caption} />}
+      {message.caption && (
+        <Caption message={message} caption={message.caption} />
+      )}
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { getRenderer } from "./registry"
 import { senderColor } from "@/lib/whatsapp/colors"
 import type { ChatKind, Message } from "@/lib/whatsapp/types"
 import { cn } from "@/lib/utils"
+import { EmojiText } from "@/components/emoji/emoji-text"
 
 export interface MessageViewProps {
   message: Message
@@ -25,12 +26,30 @@ export interface MessageViewProps {
 
 function Tail({ fromMe }: { fromMe: boolean }) {
   return fromMe ? (
-    <svg viewBox="0 0 8 13" width="8" height="13" className="absolute top-0 -right-2 text-bubble-out" aria-hidden>
-      <path fill="currentColor" d="M5.188 1H0v11.193l6.467-8.625C7.526 2.156 6.958 1 5.188 1z" />
+    <svg
+      viewBox="0 0 8 13"
+      width="8"
+      height="13"
+      className="absolute top-0 -right-2 text-bubble-out"
+      aria-hidden
+    >
+      <path
+        fill="currentColor"
+        d="M5.188 1H0v11.193l6.467-8.625C7.526 2.156 6.958 1 5.188 1z"
+      />
     </svg>
   ) : (
-    <svg viewBox="0 0 8 13" width="8" height="13" className="absolute top-0 -left-2 text-bubble-in" aria-hidden>
-      <path fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z" />
+    <svg
+      viewBox="0 0 8 13"
+      width="8"
+      height="13"
+      className="absolute top-0 -left-2 text-bubble-in"
+      aria-hidden
+    >
+      <path
+        fill="currentColor"
+        d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"
+      />
     </svg>
   )
 }
@@ -40,8 +59,12 @@ function SenderName({ message }: { message: Message }) {
   if (!s) return null
   return (
     <div className="flex min-w-0 items-baseline gap-2 px-1.5 pt-0.5 text-[12.8px] leading-5">
-      <span className={cn("truncate font-medium", senderColor(s.jid))}>{s.name}</span>
-      {!s.known && s.phone && s.name !== s.phone && <span className="truncate text-xs text-bubble-meta">{s.phone}</span>}
+      <span className={cn("truncate font-medium", senderColor(s.jid))}>
+        <EmojiText text={s.name} />
+      </span>
+      {!s.known && s.phone && s.name !== s.phone && (
+        <span className="truncate text-xs text-bubble-meta">{s.phone}</span>
+      )}
     </div>
   )
 }
@@ -73,14 +96,21 @@ export const MessageView = React.memo(function MessageView({
 
   if (renderer.layout === "center") {
     return (
-      <div className={cn("flex justify-center px-[4%] py-1.5", highlighted && "message-highlight", className)}>
+      <div
+        className={cn(
+          "flex justify-center px-[4%] py-1.5",
+          highlighted && "message-highlight",
+          className
+        )}
+      >
         <Content message={message} />
       </div>
     )
   }
 
   const fromMe = message.fromMe
-  const withSender = showSender ?? (chatKind !== "individual" && !fromMe && isFirstInGroup)
+  const withSender =
+    showSender ?? (chatKind !== "individual" && !fromMe && isFirstInGroup)
   const hasReactions = message.reactions.length > 0
 
   if (renderer.layout === "bare") {
@@ -102,7 +132,15 @@ export const MessageView = React.memo(function MessageView({
         )}
         <div className="relative">
           <Content message={message} />
-          {hasReactions && <Reactions reactions={message.reactions} className={cn("absolute -bottom-4", fromMe ? "right-2" : "left-2")} />}
+          {hasReactions && (
+            <Reactions
+              reactions={message.reactions}
+              className={cn(
+                "absolute -bottom-4",
+                fromMe ? "right-2" : "left-2"
+              )}
+            />
+          )}
         </div>
       </div>
     )
@@ -128,14 +166,21 @@ export const MessageView = React.memo(function MessageView({
       >
         {isFirstInGroup && <Tail fromMe={fromMe} />}
         {withSender && <SenderName message={message} />}
-        {message.forwarded && <ForwardedLabel many={message.frequentlyForwarded} />}
+        {message.forwarded && (
+          <ForwardedLabel many={message.frequentlyForwarded} />
+        )}
         {message.quoted && (
           <div className="px-0.5 pt-0.5 pb-0.5">
             <QuotedPreview quoted={message.quoted} onClick={onQuoteClick} />
           </div>
         )}
         <Content message={message} />
-        {hasReactions && <Reactions reactions={message.reactions} className={cn("absolute -bottom-4", fromMe ? "right-2" : "left-2")} />}
+        {hasReactions && (
+          <Reactions
+            reactions={message.reactions}
+            className={cn("absolute -bottom-4", fromMe ? "right-2" : "left-2")}
+          />
+        )}
       </div>
     </div>
   )

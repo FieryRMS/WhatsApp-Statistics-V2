@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation"
 
 import { ChatHeader } from "./chat-header"
 import { MessageList } from "./message-list"
-import { useMessageStream, type MessageStreamOptions } from "@/hooks/use-message-stream"
+import {
+  useMessageStream,
+  type MessageStreamOptions,
+} from "@/hooks/use-message-stream"
 import { chatHref, toAnchor, type ChatLocation } from "@/lib/whatsapp/anchor"
 import { fetchChat } from "@/lib/whatsapp/client"
 import { chatKind } from "@/lib/whatsapp/jid"

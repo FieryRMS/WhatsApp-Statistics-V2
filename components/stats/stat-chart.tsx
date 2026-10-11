@@ -20,25 +20,52 @@ import {
 
 import type { StatResult } from "@/lib/stats/types"
 import { cn } from "@/lib/utils"
+import { EmojiText } from "@/components/emoji/emoji-text"
+import { emojiSrc } from "@/lib/emoji/sequence"
 
-export const seriesColor = (slot: number) => (slot === 0 ? "var(--series-other)" : `var(--series-${slot})`)
+export const seriesColor = (slot: number) =>
+  slot === 0 ? "var(--series-other)" : `var(--series-${slot})`
 
-const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 })
+const compact = new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
 const full = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
 
 /** Human label for a category (time buckets are formatted in the viewer's locale). */
-export function categoryLabel(result: StatResult, i: number, short = false): string {
+export function categoryLabel(
+  result: StatResult,
+  i: number,
+  short = false
+): string {
   const c = result.categories[i]
   if (!c) return ""
   if (!result.isTime || c.from == null) return c.label
   const d = new Date(c.from)
   switch (result.query.groupBy) {
     case "day":
-      return d.toLocaleDateString(undefined, short ? { day: "numeric", month: "short" } : { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+      return d.toLocaleDateString(
+        undefined,
+        short
+          ? { day: "numeric", month: "short" }
+          : {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }
+      )
     case "week":
-      return short ? d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) : `Week of ${d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`
+      return short
+        ? d.toLocaleDateString(undefined, { day: "numeric", month: "short" })
+        : `Week of ${d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`
     case "month":
-      return d.toLocaleDateString(undefined, short ? { month: "short", year: "2-digit" } : { month: "long", year: "numeric" })
+      return d.toLocaleDateString(
+        undefined,
+        short
+          ? { month: "short", year: "2-digit" }
+          : { month: "long", year: "numeric" }
+      )
     default:
       return String(d.getFullYear())
   }
@@ -50,7 +77,12 @@ export function formatValue(v: number | null | undefined, unit: string) {
 }
 
 /** One tooltip lists every series at the hovered position; the value leads, the name follows. */
-function ChartTooltip({ active, payload, label, result }: TooltipContentProps<number, string> & { result: StatResult }) {
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  result,
+}: TooltipContentProps<number, string> & { result: StatResult }) {
   if (!active || !payload?.length) return null
   const i = Number(label)
   const rows = result.series
@@ -59,32 +91,58 @@ function ChartTooltip({ active, payload, label, result }: TooltipContentProps<nu
     .sort((a, b) => (b.v ?? 0) - (a.v ?? 0))
   return (
     <div className="min-w-44 rounded-lg border bg-popover px-3 py-2 text-xs shadow-md">
-      <div className="mb-1.5 font-medium text-muted-foreground">{categoryLabel(result, i)}</div>
+      <div className="mb-1.5 font-medium text-muted-foreground">
+        <EmojiText text={categoryLabel(result, i)} />
+      </div>
       <ul className="space-y-1">
         {rows.map(({ s, v }) => (
           <li key={s.key} className="flex items-center gap-2">
-            <span className="h-0.5 w-3 shrink-0 rounded-full" style={{ background: seriesColor(s.slot) }} />
-            <span className="font-semibold text-foreground tabular-nums">{formatValue(v, result.unit)}</span>
-            <span className="truncate text-muted-foreground">{s.label}</span>
+            <span
+              className="h-0.5 w-3 shrink-0 rounded-full"
+              style={{ background: seriesColor(s.slot) }}
+            />
+            <span className="font-semibold text-foreground tabular-nums">
+              {formatValue(v, result.unit)}
+            </span>
+            <span className="truncate text-muted-foreground">
+              <EmojiText text={s.label} />
+            </span>
           </li>
         ))}
       </ul>
-      {result.series.some((s) => s.points[i]?.length) && <div className="mt-1.5 text-[11px] text-muted-foreground">Click to open in the chat</div>}
+      {result.series.some((s) => s.points[i]?.length) && (
+        <div className="mt-1.5 text-[11px] text-muted-foreground">
+          Click to open in the chat
+        </div>
+      )}
     </div>
   )
 }
 
-export function ChartLegend({ result, shape }: { result: StatResult; shape: "line" | "rect" }) {
+export function ChartLegend({
+  result,
+  shape,
+}: {
+  result: StatResult
+  shape: "line" | "rect"
+}) {
   if (result.series.length < 2) return null
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
       {result.series.map((s) => (
         <li key={s.key} className="flex items-center gap-1.5">
           <span
-            className={cn("shrink-0", shape === "line" ? "h-0.5 w-3.5 rounded-full" : "size-2.5 rounded-[3px]")}
+            className={cn(
+              "shrink-0",
+              shape === "line"
+                ? "h-0.5 w-3.5 rounded-full"
+                : "size-2.5 rounded-[3px]"
+            )}
             style={{ background: seriesColor(s.slot) }}
           />
-          <span className="max-w-56 truncate">{s.label}</span>
+          <span className="max-w-56 truncate">
+            <EmojiText text={s.label} />
+          </span>
         </li>
       ))}
     </ul>
@@ -95,7 +153,13 @@ const CATEGORICAL = new Set(["person", "chat", "emoji", "kind", "none"])
 
 export type Zoom = [start: number, end: number] | null
 
-type ChartMouse = { activeLabel?: string | number; activeTooltipIndex?: number | string | null } | null | undefined
+type ChartMouse =
+  | {
+      activeLabel?: string | number
+      activeTooltipIndex?: number | string | null
+    }
+  | null
+  | undefined
 
 /** Category index under the pointer — the x value (not the position), so it stays right while zoomed. */
 const pointerIndex = (s: ChartMouse): number | null => {
@@ -122,18 +186,28 @@ export function StatChart({
   const [panning, setPanning] = React.useState(false)
   const wrapRef = React.useRef<HTMLDivElement>(null)
 
-  const horizontal = (result.chart === "bar" || result.chart === "stacked") && CATEGORICAL.has(result.query.groupBy)
+  const horizontal =
+    (result.chart === "bar" || result.chart === "stacked") &&
+    CATEGORICAL.has(result.query.groupBy)
   const n = result.categories.length
   // Timelines can be zoomed: drag across the plot, use the range slider, ctrl+scroll / pinch,
   // and shift+drag (or a sideways trackpad swipe) to pan.
-  const zoomable = !!onZoom && result.chart !== "heatmap" && result.isTime && result.query.sort === "key" && !horizontal && n > 12
+  const zoomable =
+    !!onZoom &&
+    result.chart !== "heatmap" &&
+    result.isTime &&
+    result.query.sort === "key" &&
+    !horizontal &&
+    n > 12
   const range = zoom && zoom[1] < n && zoom[0] <= zoom[1] ? zoom : null
   const start = range?.[0] ?? 0
   const end = range?.[1] ?? n - 1
 
   /** Where the pointer is across the plot area, 0 (left) … 1 (right). */
   const plotFraction = (clientX: number) => {
-    const grid = wrapRef.current?.querySelector(".recharts-cartesian-grid")?.getBoundingClientRect()
+    const grid = wrapRef.current
+      ?.querySelector(".recharts-cartesian-grid")
+      ?.getBoundingClientRect()
     if (!grid || grid.width <= 0) return 0.5
     return Math.min(1, Math.max(0, (clientX - grid.left) / grid.width))
   }
@@ -160,10 +234,12 @@ export function StatChart({
         const anchor = start + f * width
         const factor = Math.exp(Math.max(-1, Math.min(1, e.deltaY * 0.01)))
         const next = Math.max(4, Math.min(n - 1, Math.round(width * factor)))
-        if (next !== width) setWindow(anchor - f * next, anchor - f * next + next)
+        if (next !== width)
+          setWindow(anchor - f * next, anchor - f * next + next)
       } else if (range && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault()
-        const step = Math.round((e.deltaX / el.clientWidth) * width) || Math.sign(e.deltaX)
+        const step =
+          Math.round((e.deltaX / el.clientWidth) * width) || Math.sign(e.deltaX)
         setWindow(start + step, end + step)
       }
     }
@@ -176,7 +252,9 @@ export function StatChart({
     if (!zoomable || !range || !e.shiftKey) return
     e.preventDefault()
     e.stopPropagation()
-    const grid = wrapRef.current?.querySelector(".recharts-cartesian-grid")?.getBoundingClientRect()
+    const grid = wrapRef.current
+      ?.querySelector(".recharts-cartesian-grid")
+      ?.getBoundingClientRect()
     const perPx = (end - start) / Math.max(1, grid?.width ?? 1)
     const x0 = e.clientX
     const [a0, b0] = [start, end]
@@ -203,15 +281,24 @@ export function StatChart({
     [result]
   )
 
-  if (result.chart === "heatmap") return <Heatmap result={result} onSelect={onSelect} />
+  if (result.chart === "heatmap")
+    return <Heatmap result={result} onSelect={onSelect} />
 
   const tick = { fontSize: 11, fill: "var(--muted-foreground)" }
-  const grid = <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="" vertical={horizontal} horizontal={!horizontal} />
+  const grid = (
+    <CartesianGrid
+      stroke="var(--chart-grid)"
+      strokeDasharray=""
+      vertical={horizontal}
+      horizontal={!horizontal}
+    />
+  )
   const valueAxisProps = {
     tick,
     tickLine: false,
     axisLine: false,
-    tickFormatter: (v: number) => (result.unit === "%" ? `${v}%` : compact.format(v)),
+    tickFormatter: (v: number) =>
+      result.unit === "%" ? `${v}%` : compact.format(v),
     width: 48,
   }
   const catAxisProps = {
@@ -222,7 +309,23 @@ export function StatChart({
     tickFormatter: (i: number) => categoryLabel(result, i, true),
     minTickGap: 16,
   }
-  const tooltip = <Tooltip content={(p) => <ChartTooltip {...(p as TooltipContentProps<number, string>)} result={result} />} cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, fill: "var(--muted)", fillOpacity: 0.4 }} isAnimationActive={false} />
+  const tooltip = (
+    <Tooltip
+      content={(p) => (
+        <ChartTooltip
+          {...(p as TooltipContentProps<number, string>)}
+          result={result}
+        />
+      )}
+      cursor={{
+        stroke: "var(--muted-foreground)",
+        strokeWidth: 1,
+        fill: "var(--muted)",
+        fillOpacity: 0.4,
+      }}
+      isAnimationActive={false}
+    />
+  )
   const mouse = zoomable
     ? {
         onMouseDown: (s: ChartMouse) => {
@@ -237,7 +340,8 @@ export function StatChart({
           if (!drag) return
           setDrag(null)
           // A drag across at least one point zooms; anything else is a click.
-          if (drag.a !== drag.b) onZoom!([Math.min(drag.a, drag.b), Math.max(drag.a, drag.b)])
+          if (drag.a !== drag.b)
+            onZoom!([Math.min(drag.a, drag.b), Math.max(drag.a, drag.b)])
           else onSelect(drag.a)
         },
         onMouseLeave: () => setDrag(null),
@@ -252,12 +356,22 @@ export function StatChart({
     data,
     ...mouse,
     margin: { top: 8, right: 16, bottom: 4, left: 0 },
-    style: { cursor: panning ? "grabbing" : drag ? "col-resize" : "pointer", userSelect: "none" as const },
+    style: {
+      cursor: panning ? "grabbing" : drag ? "col-resize" : "pointer",
+      userSelect: "none" as const,
+    },
   }
   const zoomLayers = zoomable && (
     <>
       {drag && drag.a !== drag.b && (
-        <ReferenceArea x1={drag.a} x2={drag.b} fill="var(--muted-foreground)" fillOpacity={0.15} strokeOpacity={0} ifOverflow="extendDomain" />
+        <ReferenceArea
+          x1={drag.a}
+          x2={drag.b}
+          fill="var(--muted-foreground)"
+          fillOpacity={0.15}
+          strokeOpacity={0}
+          ifOverflow="extendDomain"
+        />
       )}
       <Brush
         dataKey="i"
@@ -286,7 +400,11 @@ export function StatChart({
           <Chart {...common}>
             {grid}
             <XAxis {...catAxisProps} />
-            <YAxis {...valueAxisProps} domain={result.unit === "%" && stacked ? [0, 100] : undefined} allowDataOverflow={result.unit === "%" && stacked} />
+            <YAxis
+              {...valueAxisProps}
+              domain={result.unit === "%" && stacked ? [0, 100] : undefined}
+              allowDataOverflow={result.unit === "%" && stacked}
+            />
             {tooltip}
             {zoomLayers}
             {result.series.map((s, si) =>
@@ -301,7 +419,11 @@ export function StatChart({
                   fill={seriesColor(s.slot)}
                   fillOpacity={0.1}
                   dot={false}
-                  activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--background)" }}
+                  activeDot={{
+                    r: 4,
+                    strokeWidth: 2,
+                    stroke: "var(--background)",
+                  }}
                   isAnimationActive={false}
                 />
               ) : (
@@ -313,8 +435,21 @@ export function StatChart({
                   strokeWidth={2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  dot={result.categories.length <= 31 ? { r: 3, strokeWidth: 2, stroke: "var(--background)", fill: seriesColor(s.slot) } : false}
-                  activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--background)" }}
+                  dot={
+                    result.categories.length <= 31
+                      ? {
+                          r: 3,
+                          strokeWidth: 2,
+                          stroke: "var(--background)",
+                          fill: seriesColor(s.slot),
+                        }
+                      : false
+                  }
+                  activeDot={{
+                    r: 4,
+                    strokeWidth: 2,
+                    stroke: "var(--background)",
+                  }}
                   isAnimationActive={false}
                 />
               )
@@ -329,16 +464,51 @@ export function StatChart({
   // are separated by a 2px surface-coloured gap.
   const stacked = result.chart === "stacked" && result.series.length > 1
   const last = result.series.length - 1
-  const barHeight = horizontal ? Math.max(height, result.categories.length * 30 + 40) : height
+  const barHeight = horizontal
+    ? Math.max(height, result.categories.length * 30 + 40)
+    : height
   return (
-    <div ref={wrapRef} style={{ height: barHeight }} onMouseDownCapture={onPanStart}>
+    <div
+      ref={wrapRef}
+      style={{ height: barHeight }}
+      onMouseDownCapture={onPanStart}
+    >
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart {...common} layout={horizontal ? "vertical" : "horizontal"} barCategoryGap="22%" barGap={2}>
+        <BarChart
+          {...common}
+          layout={horizontal ? "vertical" : "horizontal"}
+          barCategoryGap="22%"
+          barGap={2}
+        >
           {grid}
           {horizontal ? (
             <>
               <XAxis type="number" {...valueAxisProps} />
-              <YAxis type="category" {...catAxisProps} width={150} interval={0} tickFormatter={(i: number) => truncate(categoryLabel(result, i, true), 22)} />
+              <YAxis
+                type="category"
+                {...catAxisProps}
+                width={150}
+                interval={0}
+                tickFormatter={(i: number) =>
+                  truncate(categoryLabel(result, i, true), 22)
+                }
+                // SVG text can't use the WhatsApp emoji artwork, so the emoji axis draws images.
+                tick={
+                  result.query.groupBy === "emoji"
+                    ? (props) => (
+                        <EmojiAxisTick
+                          x={Number(props.x)}
+                          y={Number(props.y)}
+                          label={categoryLabel(
+                            result,
+                            Number(props.payload?.value),
+                            true
+                          )}
+                        />
+                      )
+                    : undefined
+                }
+              />
             </>
           ) : (
             <>
@@ -356,7 +526,13 @@ export function StatChart({
               maxBarSize={24}
               stroke={stacked ? "var(--background)" : undefined}
               strokeWidth={stacked ? 2 : 0}
-              radius={!stacked || si === last ? (horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]) : 0}
+              radius={
+                !stacked || si === last
+                  ? horizontal
+                    ? [0, 4, 4, 0]
+                    : [4, 4, 0, 0]
+                  : 0
+              }
               isAnimationActive={false}
             />
           ))}
@@ -367,15 +543,44 @@ export function StatChart({
   )
 }
 
+function EmojiAxisTick({
+  x,
+  y,
+  label,
+}: {
+  x: number
+  y: number
+  label: string
+}) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <title>{label}</title>
+      <image href={emojiSrc(label)} x={-26} y={-10} width={20} height={20} />
+    </g>
+  )
+}
+
 function truncate(s: string, n: number) {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s
 }
 
 /** Rows = series (e.g. weekdays), columns = categories (e.g. hours). One hue, light → dark. */
-function Heatmap({ result, onSelect }: { result: StatResult; onSelect: (c: number, s?: number) => void }) {
-  const max = Math.max(1, ...result.series.flatMap((s) => s.values.map((v) => v ?? 0)))
-  const step = (v: number | null) => (v ? Math.min(7, 1 + Math.floor((v / max) * 7)) : 0)
-  const [hover, setHover] = React.useState<{ s: number; c: number } | null>(null)
+function Heatmap({
+  result,
+  onSelect,
+}: {
+  result: StatResult
+  onSelect: (c: number, s?: number) => void
+}) {
+  const max = Math.max(
+    1,
+    ...result.series.flatMap((s) => s.values.map((v) => v ?? 0))
+  )
+  const step = (v: number | null) =>
+    v ? Math.min(7, 1 + Math.floor((v / max) * 7)) : 0
+  const [hover, setHover] = React.useState<{ s: number; c: number } | null>(
+    null
+  )
   return (
     <div className="flex flex-col gap-3">
       <div className="overflow-x-auto">
@@ -384,8 +589,13 @@ function Heatmap({ result, onSelect }: { result: StatResult; onSelect: (c: numbe
             <tr>
               <th />
               {result.categories.map((_, c) => (
-                <th key={c} className="px-0.5 pb-1 text-center font-normal text-muted-foreground">
-                  {result.categories.length > 12 && c % 2 ? "" : categoryLabel(result, c, true).replace(":00", "")}
+                <th
+                  key={c}
+                  className="px-0.5 pb-1 text-center font-normal text-muted-foreground"
+                >
+                  {result.categories.length > 12 && c % 2
+                    ? ""
+                    : categoryLabel(result, c, true).replace(":00", "")}
                 </th>
               ))}
             </tr>
@@ -393,7 +603,9 @@ function Heatmap({ result, onSelect }: { result: StatResult; onSelect: (c: numbe
           <tbody>
             {result.series.map((s, si) => (
               <tr key={s.key}>
-                <th className="pr-2 text-right font-normal whitespace-nowrap text-muted-foreground">{s.label}</th>
+                <th className="pr-2 text-right font-normal whitespace-nowrap text-muted-foreground">
+                  <EmojiText text={s.label} />
+                </th>
                 {s.values.map((v, c) => (
                   <td key={c} className="p-0">
                     <button
@@ -417,7 +629,12 @@ function Heatmap({ result, onSelect }: { result: StatResult; onSelect: (c: numbe
         <span className="min-h-4">
           {hover ? (
             <>
-              <span className="font-semibold text-foreground tabular-nums">{formatValue(result.series[hover.s].values[hover.c], result.unit)}</span>{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                {formatValue(
+                  result.series[hover.s].values[hover.c],
+                  result.unit
+                )}
+              </span>{" "}
               {result.series[hover.s].label}, {categoryLabel(result, hover.c)}
             </>
           ) : (
@@ -427,7 +644,11 @@ function Heatmap({ result, onSelect }: { result: StatResult; onSelect: (c: numbe
         <span className="flex items-center gap-1.5">
           Fewer
           {Array.from({ length: 8 }, (_, i) => (
-            <span key={i} className="size-3 rounded-[2px]" style={{ background: `var(--seq-${i})` }} />
+            <span
+              key={i}
+              className="size-3 rounded-[2px]"
+              style={{ background: `var(--seq-${i})` }}
+            />
           ))}
           More
         </span>
@@ -436,18 +657,29 @@ function Heatmap({ result, onSelect }: { result: StatResult; onSelect: (c: numbe
   )
 }
 
-export function DataTable({ result, onSelect }: { result: StatResult; onSelect: (c: number, s?: number) => void }) {
+export function DataTable({
+  result,
+  onSelect,
+}: {
+  result: StatResult
+  onSelect: (c: number, s?: number) => void
+}) {
   return (
     <div className="max-h-[420px] overflow-auto rounded-md border">
       <table className="w-full text-sm">
         <thead className="sticky top-0 bg-muted/80 backdrop-blur">
           <tr>
-            <th className="px-3 py-2 text-left font-medium">{result.isTime ? "Period" : "Category"}</th>
+            <th className="px-3 py-2 text-left font-medium">
+              {result.isTime ? "Period" : "Category"}
+            </th>
             {result.series.map((s) => (
               <th key={s.key} className="px-3 py-2 text-right font-medium">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2 rounded-[2px]" style={{ background: seriesColor(s.slot) }} />
-                  {s.label}
+                  <span
+                    className="size-2 rounded-[2px]"
+                    style={{ background: seriesColor(s.slot) }}
+                  />
+                  <EmojiText text={s.label} />
                 </span>
               </th>
             ))}
@@ -460,16 +692,25 @@ export function DataTable({ result, onSelect }: { result: StatResult; onSelect: 
               tabIndex={0}
               className="cursor-pointer outline-none hover:bg-muted/50 focus-visible:bg-muted"
               onClick={() => onSelect(c)}
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onSelect(c))}
+              onKeyDown={(e) =>
+                (e.key === "Enter" || e.key === " ") &&
+                (e.preventDefault(), onSelect(c))
+              }
               title="Open in the chat"
             >
-              <td className="px-3 py-1.5">{categoryLabel(result, c)}</td>
+              <td className="px-3 py-1.5">
+                <EmojiText text={categoryLabel(result, c)} />
+              </td>
               {result.series.map((s) => (
                 <td key={s.key} className="px-3 py-1.5 text-right tabular-nums">
                   {formatValue(s.values[c], result.unit)}
-                  {result.query.transform !== "none" && s.raw[c] != null && s.raw[c] !== s.values[c] && (
-                    <span className="ml-1.5 text-xs text-muted-foreground">({full.format(s.raw[c]!)})</span>
-                  )}
+                  {result.query.transform !== "none" &&
+                    s.raw[c] != null &&
+                    s.raw[c] !== s.values[c] && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        ({full.format(s.raw[c]!)})
+                      </span>
+                    )}
                 </td>
               ))}
             </tr>

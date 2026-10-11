@@ -49,11 +49,23 @@ export function AudioMessageContent({ message }: { message: AudioMessage }) {
       {message.voiceNote ? (
         <div className="relative shrink-0">
           <Avatar className="size-11">
-            <AvatarFallback className={cn("text-sm text-white", avatarColor(sender?.jid ?? null))}>
+            <AvatarFallback
+              className={cn(
+                "text-sm text-white",
+                avatarColor(sender?.jid ?? null)
+              )}
+            >
               {initials(sender?.name ?? "?")}
             </AvatarFallback>
           </Avatar>
-          <Mic className={cn("absolute -right-1 -bottom-0.5 size-4", message.status === "played" || !message.fromMe ? "text-tick-read" : "text-bubble-meta")} />
+          <Mic
+            className={cn(
+              "absolute -right-1 -bottom-0.5 size-4",
+              message.status === "played" || !message.fromMe
+                ? "text-tick-read"
+                : "text-bubble-meta"
+            )}
+          />
         </div>
       ) : (
         <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#ff9f2e] text-white">
@@ -69,17 +81,26 @@ export function AudioMessageContent({ message }: { message: AudioMessage }) {
         aria-label={playing ? "Pause" : "Play"}
         title={available ? undefined : "Audio file not available"}
       >
-        {playing ? <Pause className="size-7 fill-current" /> : <Play className="size-7 fill-current" />}
+        {playing ? (
+          <Pause className="size-7 fill-current" />
+        ) : (
+          <Play className="size-7 fill-current" />
+        )}
       </button>
 
       <div className="min-w-0 flex-1">
-        <div className="flex h-7 cursor-pointer items-center gap-[2px]" onClick={seek}>
+        <div
+          className="flex h-7 cursor-pointer items-center gap-[2px]"
+          onClick={seek}
+        >
           {wave.map((h, i) => (
             <span
               key={i}
               className={cn(
                 "w-[3px] flex-1 rounded-full",
-                i / wave.length < progress ? "bg-wa-accent" : "bg-bubble-meta/45"
+                i / wave.length < progress
+                  ? "bg-wa-accent"
+                  : "bg-bubble-meta/45"
               )}
               style={{ height: `${h * 100}%` }}
             />

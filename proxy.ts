@@ -20,5 +20,6 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   // Everything except sign-in/setup pages and static assets.
-  matcher: ["/((?!login|setup|_next/static|_next/image|favicon.ico).*)"],
+  // Static emoji artwork (/emoji) is public and the same for everyone.
+  matcher: ["/((?!login|setup|emoji/|_next/static|_next/image|favicon.ico).*)"],
 }

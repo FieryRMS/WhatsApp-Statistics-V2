@@ -2,6 +2,7 @@ import { RichText } from "./rich-text"
 import { senderColor } from "@/lib/whatsapp/colors"
 import type { QuotedMessage } from "@/lib/whatsapp/types"
 import { cn } from "@/lib/utils"
+import { EmojiText } from "@/components/emoji/emoji-text"
 
 export function QuotedPreview({
   quoted,
@@ -27,14 +28,25 @@ export function QuotedPreview({
     >
       <span className={cn("w-1 shrink-0 bg-current", color)} />
       <span className="min-w-0 flex-1 px-2 py-1.5">
-        <span className={cn("block truncate text-xs font-medium", color)}>{quoted.sender.name}</span>
+        <span className={cn("block truncate text-xs font-medium", color)}>
+          <EmojiText text={quoted.sender.name} />
+        </span>
         <span className="line-clamp-3 text-[13px] break-words whitespace-pre-wrap text-muted-foreground">
-          <RichText text={quoted.preview} mentions={quoted.mentions} linkify={false} />
+          <RichText
+            text={quoted.preview}
+            mentions={quoted.mentions}
+            linkify={false}
+          />
         </span>
       </span>
       {quoted.thumbnailUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={quoted.thumbnailUrl} alt="" className="size-14 shrink-0 object-cover" loading="lazy" />
+        <img
+          src={quoted.thumbnailUrl}
+          alt=""
+          className="size-14 shrink-0 object-cover"
+          loading="lazy"
+        />
       )}
     </button>
   )

@@ -2,14 +2,40 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { BarChart3, Bookmark, Link2, Loader2, RotateCcw, Sparkles, Table2, Trash2, Users, ZoomOut } from "lucide-react"
+import {
+  BarChart3,
+  Bookmark,
+  Link2,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  Table2,
+  Trash2,
+  Users,
+  ZoomOut,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { QueryBuilder } from "./query-builder"
-import { ChartLegend, DataTable, StatChart, categoryLabel, formatValue, seriesColor, type Zoom } from "./stat-chart"
+import {
+  ChartLegend,
+  DataTable,
+  StatChart,
+  categoryLabel,
+  formatValue,
+  seriesColor,
+  type Zoom,
+} from "./stat-chart"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -20,8 +46,15 @@ import { deleteStatAction, saveStatAction } from "@/lib/stats/actions"
 import { describeQuery } from "@/lib/stats/describe"
 import type { Preset } from "@/lib/stats/presets"
 import { encodeQuery } from "@/lib/stats/schema"
-import { DEFAULT_QUERY, type PointChat, type StatQuery, type StatResult, type StatsCatalog } from "@/lib/stats/types"
+import {
+  DEFAULT_QUERY,
+  type PointChat,
+  type StatQuery,
+  type StatResult,
+  type StatsCatalog,
+} from "@/lib/stats/types"
 import { cn } from "@/lib/utils"
+import { EmojiText } from "@/components/emoji/emoji-text"
 
 export interface SavedSummary {
   id: number
@@ -71,14 +104,18 @@ export function StatsWorkbench({
 }) {
   const router = useRouter()
   const [query, setQuery] = React.useState<StatQuery>(initialQuery)
-  const [current, setCurrent] = React.useState<SavedSummary | null>(initialSaved)
+  const [current, setCurrent] = React.useState<SavedSummary | null>(
+    initialSaved
+  )
   const [result, setResult] = React.useState<StatResult | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [view, setView] = React.useState<"chart" | "table">(initialView)
   const [selection, setSelection] = React.useState<Selection | null>(null)
   const [zoom, setZoom] = React.useState<Zoom>(null)
-  const [dialog, setDialog] = React.useState<"presets" | "saved" | "save" | null>(null)
+  const [dialog, setDialog] = React.useState<
+    "presets" | "saved" | "save" | null
+  >(null)
 
   // Run the query whenever it changes (debounced); keep the previous chart visible meanwhile.
   React.useEffect(() => {
@@ -119,9 +156,15 @@ export function StatsWorkbench({
     const here = `${location.pathname}${location.search}`
     entryUrl.current = here
     try {
-      const saved = JSON.parse(sessionStorage.getItem(RETURN_KEY) ?? "null") as ReturnState | null
+      const saved = JSON.parse(
+        sessionStorage.getItem(RETURN_KEY) ?? "null"
+      ) as ReturnState | null
       sessionStorage.removeItem(RETURN_KEY)
-      if (saved && saved.urls.includes(here) && Date.now() - saved.at < 6 * 3600_000) {
+      if (
+        saved &&
+        saved.urls.includes(here) &&
+        Date.now() - saved.at < 6 * 3600_000
+      ) {
         // Restoring from an external store (sessionStorage) once on mount.
         /* eslint-disable react-hooks/set-state-in-effect */
         setQuery(saved.query)
@@ -141,12 +184,18 @@ export function StatsWorkbench({
   const rememberState = () => {
     try {
       const state: ReturnState = {
-        urls: [entryUrl.current ?? "", `${location.pathname}${location.search}`],
+        urls: [
+          entryUrl.current ?? "",
+          `${location.pathname}${location.search}`,
+        ],
         query,
         view,
         current,
         zoom,
-        scroll: [asideRef.current?.scrollTop ?? 0, mainRef.current?.scrollTop ?? 0],
+        scroll: [
+          asideRef.current?.scrollTop ?? 0,
+          mainRef.current?.scrollTop ?? 0,
+        ],
         at: Date.now(),
       }
       sessionStorage.setItem(RETURN_KEY, JSON.stringify(state))
@@ -175,17 +224,23 @@ export function StatsWorkbench({
 
   const select = (category: number, series?: number) => {
     if (!result) return
-    const points = (series != null ? [result.series[series]] : result.series).flatMap((s) => s.points[category] ?? [])
+    const points = (
+      series != null ? [result.series[series]] : result.series
+    ).flatMap((s) => s.points[category] ?? [])
     if (points.length === 0) return
     const chats = new Set(points.map((p) => p.jid))
-    if (chats.size === 1 && (series != null || result.series.length === 1)) open(points[0])
+    if (chats.size === 1 && (series != null || result.series.length === 1))
+      open(points[0])
     else setSelection({ category, series })
   }
 
   const copyLink = async () => {
     const url = `${location.origin}/stats?q=${encodeQuery(query)}`
     await navigator.clipboard.writeText(url)
-    toast.success("Link copied", { description: "Anyone with an account can open it; they'll see the numbers for the chats they have access to." })
+    toast.success("Link copied", {
+      description:
+        "Anyone with an account can open it; they'll see the numbers for the chats they have access to.",
+    })
   }
 
   const summary = describeQuery(query, catalog)
@@ -198,9 +253,17 @@ export function StatsWorkbench({
         <BarChart3 className="size-5 text-wa-accent" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-base font-semibold">{title}</h1>
-          {current && !current.mine && <p className="text-xs text-muted-foreground">Shared by {current.ownerName}</p>}
+          {current && !current.mine && (
+            <p className="text-xs text-muted-foreground">
+              Shared by {current.ownerName}
+            </p>
+          )}
         </div>
-        <Button variant="outline" size="sm" onClick={() => setDialog("presets")}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setDialog("presets")}
+        >
           <Sparkles /> Ideas
         </Button>
         <Button variant="outline" size="sm" onClick={() => setDialog("saved")}>
@@ -215,29 +278,56 @@ export function StatsWorkbench({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <aside ref={asideRef} className="shrink-0 overflow-y-auto border-b p-4 lg:w-[400px] lg:border-r lg:border-b-0">
+        <aside
+          ref={asideRef}
+          className="shrink-0 overflow-y-auto border-b p-4 lg:w-[400px] lg:border-r lg:border-b-0"
+        >
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Build your own statistic, or start from an idea.</span>
-            <Button variant="ghost" size="sm" onClick={() => load(DEFAULT_QUERY)} title="Start over">
+            <span className="text-xs text-muted-foreground">
+              Build your own statistic, or start from an idea.
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => load(DEFAULT_QUERY)}
+              title="Start over"
+            >
               <RotateCcw /> Reset
             </Button>
           </div>
-          <QueryBuilder query={query} onChange={changeQuery} catalog={catalog} />
+          <QueryBuilder
+            query={query}
+            onChange={changeQuery}
+            catalog={catalog}
+          />
         </aside>
 
-        <main ref={mainRef} className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
+        <main
+          ref={mainRef}
+          className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6"
+        >
           {notice && (
             <Alert>
               <AlertDescription>{notice}</AlertDescription>
             </Alert>
           )}
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <p className="max-w-3xl text-sm text-foreground">{summary}</p>
+            <p className="max-w-3xl text-sm text-foreground">
+              <EmojiText text={summary} />
+            </p>
             <div className="flex rounded-md border p-0.5">
-              <Button variant={view === "chart" ? "secondary" : "ghost"} size="sm" onClick={() => setView("chart")}>
+              <Button
+                variant={view === "chart" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setView("chart")}
+              >
                 <BarChart3 /> Chart
               </Button>
-              <Button variant={view === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setView("table")}>
+              <Button
+                variant={view === "table" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setView("table")}
+              >
                 <Table2 /> Table
               </Button>
             </div>
@@ -254,41 +344,77 @@ export function StatsWorkbench({
             </p>
           ))}
 
-          <div className={cn("relative rounded-xl border bg-card p-4 transition-opacity", loading && result && "opacity-60")}>
+          <div
+            className={cn(
+              "relative rounded-xl border bg-card p-4 transition-opacity",
+              loading && result && "opacity-60"
+            )}
+          >
             {!result && loading && (
               <div className="flex h-[380px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-6 animate-spin text-wa-accent" />
-                Counting your messages… the first run indexes everything and can take a few seconds.
+                Counting your messages… the first run indexes everything and can
+                take a few seconds.
               </div>
             )}
             {result && result.categories.length === 0 && (
-              <div className="flex h-[380px] items-center justify-center text-sm text-muted-foreground">Nothing matches these settings.</div>
+              <div className="flex h-[380px] items-center justify-center text-sm text-muted-foreground">
+                Nothing matches these settings.
+              </div>
             )}
             {result && result.categories.length > 0 && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  {result.chart !== "heatmap" ? <ChartLegend result={result} shape={result.chart === "line" ? "line" : "rect"} /> : <span />}
+                  {result.chart !== "heatmap" ? (
+                    <ChartLegend
+                      result={result}
+                      shape={result.chart === "line" ? "line" : "rect"}
+                    />
+                  ) : (
+                    <span />
+                  )}
                   <span className="text-xs text-muted-foreground">
-                    {result.unit} · {result.stats.messages.toLocaleString()} messages searched in {result.stats.ms} ms
-                    {result.stats.indexMs ? ` (indexed in ${(result.stats.indexMs / 1000).toFixed(1)} s)` : ""}
+                    {result.unit} · {result.stats.messages.toLocaleString()}{" "}
+                    messages searched in {result.stats.ms} ms
+                    {result.stats.indexMs
+                      ? ` (indexed in ${(result.stats.indexMs / 1000).toFixed(1)} s)`
+                      : ""}
                   </span>
                 </div>
                 {view === "chart" ? (
                   <div onDoubleClick={() => setZoom(null)}>
-                    <StatChart result={result} onSelect={select} zoom={zoom} onZoom={setZoom} />
+                    <StatChart
+                      result={result}
+                      onSelect={select}
+                      zoom={zoom}
+                      onZoom={setZoom}
+                    />
                   </div>
                 ) : (
                   <DataTable result={result} onSelect={select} />
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-muted-foreground">
-                    Tip: click any point, bar or cell to jump to that moment in the chat.
-                    {result.isTime && result.query.sort === "key" && result.categories.length > 12 && view === "chart" && (
-                      <> Zoom: drag across the chart, Ctrl+scroll or pinch, or use the slider. Shift+drag to pan; double-click to zoom out.</>
-                    )}
+                    Tip: click any point, bar or cell to jump to that moment in
+                    the chat.
+                    {result.isTime &&
+                      result.query.sort === "key" &&
+                      result.categories.length > 12 &&
+                      view === "chart" && (
+                        <>
+                          {" "}
+                          Zoom: drag across the chart, Ctrl+scroll or pinch, or
+                          use the slider. Shift+drag to pan; double-click to
+                          zoom out.
+                        </>
+                      )}
                   </p>
                   {zoom && view === "chart" && (
-                    <Button variant="outline" size="sm" onClick={() => setZoom(null)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setZoom(null)}
+                    >
                       <ZoomOut /> Reset zoom
                     </Button>
                   )}
@@ -299,8 +425,18 @@ export function StatsWorkbench({
         </main>
       </div>
 
-      <PointDialog result={result} selection={selection} onClose={() => setSelection(null)} onOpen={open} />
-      <PresetsDialog open={dialog === "presets"} onClose={() => setDialog(null)} presets={presets} onPick={(p) => load({ ...p.query, title: p.title })} />
+      <PointDialog
+        result={result}
+        selection={selection}
+        onClose={() => setSelection(null)}
+        onOpen={open}
+      />
+      <PresetsDialog
+        open={dialog === "presets"}
+        onClose={() => setDialog(null)}
+        presets={presets}
+        onPick={(p) => load({ ...p.query, title: p.title })}
+      />
       <SavedDialog
         open={dialog === "saved"}
         onClose={() => setDialog(null)}
@@ -337,14 +473,17 @@ function PointDialog({
   onOpen: (p: PointChat) => void
 }) {
   if (!result || !selection) return null
-  const series = selection.series != null ? [result.series[selection.series]] : result.series
+  const series =
+    selection.series != null ? [result.series[selection.series]] : result.series
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{categoryLabel(result, selection.category)}</DialogTitle>
           <DialogDescription>
-            {result.isTime ? "Jump to the first matching message in each chat." : "Jump to the latest matching message in each chat."}
+            {result.isTime
+              ? "Jump to the first matching message in each chat."
+              : "Jump to the latest matching message in each chat."}
           </DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
@@ -354,17 +493,32 @@ function PointDialog({
             return (
               <div key={s.key}>
                 <div className="mb-1.5 flex items-center gap-2 text-sm">
-                  <span className="h-0.5 w-3 rounded-full" style={{ background: seriesColor(s.slot) }} />
-                  <span className="font-semibold tabular-nums">{formatValue(s.values[selection.category], result.unit)}</span>
-                  <span className="text-muted-foreground">{s.label}</span>
+                  <span
+                    className="h-0.5 w-3 rounded-full"
+                    style={{ background: seriesColor(s.slot) }}
+                  />
+                  <span className="font-semibold tabular-nums">
+                    {formatValue(s.values[selection.category], result.unit)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    <EmojiText text={s.label} />
+                  </span>
                 </div>
                 <ul className="flex flex-col gap-1">
                   {points.map((p) => (
                     <li key={p.jid}>
-                      <button type="button" onClick={() => onOpen(p)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted">
+                      <button
+                        type="button"
+                        onClick={() => onOpen(p)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                      >
                         <Users className="size-4 text-muted-foreground" />
-                        <span className="flex-1 truncate">{p.name}</span>
-                        <span className="text-xs text-muted-foreground tabular-nums">{p.count.toLocaleString()}</span>
+                        <span className="flex-1 truncate">
+                          <EmojiText text={p.name} />
+                        </span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {p.count.toLocaleString()}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -378,14 +532,26 @@ function PointDialog({
   )
 }
 
-function PresetsDialog({ open, onClose, presets, onPick }: { open: boolean; onClose: () => void; presets: Preset[]; onPick: (p: Preset) => void }) {
+function PresetsDialog({
+  open,
+  onClose,
+  presets,
+  onPick,
+}: {
+  open: boolean
+  onClose: () => void
+  presets: Preset[]
+  onPick: (p: Preset) => void
+}) {
   const groups = [...new Set(presets.map((p) => p.group))]
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Ideas to start from</DialogTitle>
-          <DialogDescription>Pick one, then change anything you like in the builder.</DialogDescription>
+          <DialogDescription>
+            Pick one, then change anything you like in the builder.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-5">
           {groups.map((g) => (
@@ -395,9 +561,16 @@ function PresetsDialog({ open, onClose, presets, onPick }: { open: boolean; onCl
                 {presets
                   .filter((p) => p.group === g)
                   .map((p) => (
-                    <button key={p.id} type="button" onClick={() => onPick(p)} className="rounded-lg border p-3 text-left hover:border-wa-accent hover:bg-wa-accent/5">
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => onPick(p)}
+                      className="rounded-lg border p-3 text-left hover:border-wa-accent hover:bg-wa-accent/5"
+                    >
                       <div className="text-sm font-medium">{p.title}</div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">{p.description}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {p.description}
+                      </div>
                     </button>
                   ))}
               </div>
@@ -438,16 +611,35 @@ function SavedDialog({
     ) : (
       <ul className="flex flex-col gap-1.5">
         {items.map((s) => (
-          <li key={s.id} className="flex items-center gap-2 rounded-lg border p-2.5">
-            <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onPick(s)}>
+          <li
+            key={s.id}
+            className="flex items-center gap-2 rounded-lg border p-2.5"
+          >
+            <button
+              type="button"
+              className="min-w-0 flex-1 text-left"
+              onClick={() => onPick(s)}
+            >
               <div className="truncate text-sm font-medium">
                 {s.name}
-                {s.mine && s.shared && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal">Shared</span>}
+                {s.mine && s.shared && (
+                  <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal">
+                    Shared
+                  </span>
+                )}
               </div>
-              <div className="truncate text-xs text-muted-foreground">{s.description || (s.mine ? "Only you" : `by ${s.ownerName}`)}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {s.description || (s.mine ? "Only you" : `by ${s.ownerName}`)}
+              </div>
             </button>
             {(s.mine || viewerIsAdmin) && (
-              <Button variant="ghost" size="icon" className="size-8" onClick={() => del(s)} aria-label="Delete">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={() => del(s)}
+                aria-label="Delete"
+              >
                 <Trash2 />
               </Button>
             )}
@@ -460,7 +652,10 @@ function SavedDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Saved statistics</DialogTitle>
-          <DialogDescription>Shared statistics run on each person&apos;s own chats, so everyone sees their own numbers.</DialogDescription>
+          <DialogDescription>
+            Shared statistics run on each person&apos;s own chats, so everyone
+            sees their own numbers.
+          </DialogDescription>
         </DialogHeader>
         <h3 className="text-sm font-semibold">Yours</h3>
         {list(mine, "Nothing saved yet. Use Save to keep a statistic.")}
@@ -487,7 +682,9 @@ function SaveDialog({
   onSaved: (s: SavedSummary) => void
 }) {
   const [name, setName] = React.useState(defaultName)
-  const [description, setDescription] = React.useState(current?.description ?? "")
+  const [description, setDescription] = React.useState(
+    current?.description ?? ""
+  )
   const [shared, setShared] = React.useState(current?.shared ?? false)
   const [asNew, setAsNew] = React.useState(!current)
   // Fresh state each time it opens: the parent remounts this dialog via `key`.
@@ -496,9 +693,23 @@ function SaveDialog({
 
   const save = () =>
     start(async () => {
-      const res = await saveStatAction({ id: asNew ? undefined : current?.id, name, description, shared, query })
+      const res = await saveStatAction({
+        id: asNew ? undefined : current?.id,
+        name,
+        description,
+        shared,
+        query,
+      })
       if (res.error || !res.id) return setError(res.error ?? "Couldn't save.")
-      onSaved({ id: res.id, name, description, shared, query, mine: true, ownerName: "you" })
+      onSaved({
+        id: res.id,
+        name,
+        description,
+        shared,
+        query,
+        mine: true,
+        ownerName: "you",
+      })
       toast.success(shared ? "Saved and shared" : "Saved")
       onClose()
     })
@@ -508,23 +719,42 @@ function SaveDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Save statistic</DialogTitle>
-          <DialogDescription>Only the settings are saved, never the results.</DialogDescription>
+          <DialogDescription>
+            Only the settings are saved, never the results.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="grid gap-1.5">
             <Label htmlFor="stat-name">Name</Label>
-            <Input id="stat-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
+            <Input
+              id="stat-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              autoFocus
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="stat-desc">Description (optional)</Label>
-            <Textarea id="stat-desc" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} rows={2} />
+            <Textarea
+              id="stat-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={500}
+              rows={2}
+            />
           </div>
           <label className="flex items-start gap-2 text-sm">
-            <Switch checked={shared} onCheckedChange={setShared} className="mt-0.5" />
+            <Switch
+              checked={shared}
+              onCheckedChange={setShared}
+              className="mt-0.5"
+            />
             <span>
               Share with everyone
               <span className="block text-xs text-muted-foreground">
-                Others see it under Saved and get their own numbers. Chats or people they can&apos;t access are removed from it for them.
+                Others see it under Saved and get their own numbers. Chats or
+                people they can&apos;t access are removed from it for them.
               </span>
             </span>
           </label>
