@@ -10,7 +10,7 @@ import path from "node:path"
  * WHATSAPP_APP_DATA_DIR), never mixed with WhatsApp data.
  */
 
-export const appDataDir = process.env.WHATSAPP_APP_DATA_DIR ?? path.join(process.cwd(), "app-data")
+export const appDataDir = process.env.WHATSAPP_APP_DATA_DIR ?? path.join(/* turbopackIgnore: true */ process.cwd(), "app-data")
 
 export type Role = "admin" | "user"
 

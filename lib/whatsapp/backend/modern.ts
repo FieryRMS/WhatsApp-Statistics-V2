@@ -515,6 +515,16 @@ export const modernBackend: Backend = {
        WHERE q.message_row_id IN (${placeholders(keys.length)})`,
       ...keys
     )
+    const mentions =
+      rows.length && hasTable("message_quoted_mentions")
+        ? groupBy(
+            all<{ id: number; jid: string }>(
+              `SELECT qm.message_row_id AS id, j.raw_string AS jid FROM message_quoted_mentions qm
+               JOIN jid j ON j._id = qm.jid_row_id WHERE qm.message_row_id IN (${placeholders(rows.length)})`,
+              ...rows.map((r) => r.id)
+            )
+          )
+        : new Map<number, { id: number; jid: string }[]>()
     for (const r of rows) {
       const individual = chatKind(r.chat_jid) === "individual"
       out.set(r.id, {
@@ -527,6 +537,7 @@ export const modernBackend: Backend = {
         caption: r.caption,
         fileName: r.file_name,
         thumbnailUrl: r.has_thumb ? `/api/messages/${r.id}/thumbnail?quoted=1` : null,
+        mentions: (mentions.get(r.id) ?? []).map((m) => m.jid),
       })
     }
     return out

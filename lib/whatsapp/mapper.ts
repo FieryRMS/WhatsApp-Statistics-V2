@@ -285,6 +285,7 @@ export function mapQuote(q: RawQuote): QuotedMessage {
         ? { mime: null, size: null, width: null, height: null, duration: null, name: q.fileName, path: null, pageCount: null, animated: false }
         : null,
       voiceNote: q.type === WaType.AUDIO,
+      mentions: q.mentions,
     })
   )
   return {
@@ -292,6 +293,7 @@ export function mapQuote(q: RawQuote): QuotedMessage {
     sender: q.fromMe ? me() : participant(q.senderJid),
     kind: msg.kind,
     preview: messagePreview(msg),
+    mentions: msg.mentions,
     thumbnailUrl: q.thumbnailUrl,
   }
 }

@@ -90,6 +90,8 @@ export interface RawQuote {
   caption: string | null
   fileName: string | null
   thumbnailUrl: string | null
+  /** JIDs mentioned in the quoted text. */
+  mentions: string[]
 }
 
 export interface RawReaction {

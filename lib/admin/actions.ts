@@ -18,6 +18,7 @@ import {
   type Role,
 } from "../auth/store"
 import { validatePassword, validateUsername } from "../auth/validate"
+import { removeNames } from "../names/store"
 import { primarySource, runWithSource } from "../whatsapp/db"
 import { getChat } from "../whatsapp/queries"
 
@@ -90,6 +91,7 @@ export async function deleteUserAction(userId: number): Promise<AdminFormState> 
   if (user.role === "admin" && countAdmins() <= 1) return { error: "There must be at least one admin." }
   deleteUser(user.id)
   removeSnapshots(user.id)
+  removeNames(user.id)
   revalidatePath("/admin")
   redirect("/admin")
 }

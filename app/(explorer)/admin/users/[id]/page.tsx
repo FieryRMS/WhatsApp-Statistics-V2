@@ -6,9 +6,11 @@ import { AccountDangerZone } from "@/components/admin/account-danger-zone"
 import { GrantsEditor } from "@/components/admin/grants-editor"
 import { PasswordForm } from "@/components/admin/password-form"
 import { UserSettingsForm } from "@/components/admin/user-settings-form"
+import { NamesEditor } from "@/components/names/names-editor"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { requireAdmin, withData } from "@/lib/access/dal"
 import { countUserSessions, getSnapshotRecord, getUser, listGrants } from "@/lib/auth/store"
+import { nameRows } from "@/lib/names/rows"
 import { listChats } from "@/lib/whatsapp/queries"
 
 const DAY = 86_400_000
@@ -37,6 +39,7 @@ export default async function UserPage(props: PageProps<"/admin/users/[id]">) {
     to: g.toTs == null ? "" : isoDay(g.toTs - DAY),
   }))
   const snapshot = getSnapshotRecord(user.id)
+  const names = await nameRows(user, true)
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-8">
@@ -87,6 +90,19 @@ export default async function UserPage(props: PageProps<"/admin/users/[id]">) {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Contact names</CardTitle>
+          <CardDescription>
+            The names this account sees, stored in its own mapping file. The account can edit the same list from its
+            Contact names page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <NamesEditor userId={user.id} rows={names} namesOnly={user.role !== "admin"} canReset />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

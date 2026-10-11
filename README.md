@@ -52,6 +52,19 @@ How access is enforced:
 - **Passwords:** hashed with scrypt. Sign-in is rate-limited per username, and responses don't
   reveal whether a username exists.
 
+### Contact names
+
+Each account has its own name mapping, `app-data/names/u<id>.json`, shaped `{ "<jid>": "Name" | null }`.
+A string renames that person; `null` hides the name so the phone number shows instead.
+The account edits it on its **Contact names** page, and admins edit the same file from `/admin`.
+
+- **Restricted accounts** get names *only* from their mapping. wa.db, push names, contact cards and
+  display names are never used for them, and their filtered copy contains no wa.db. The mapping is
+  seeded with the names they'd have seen automatically. When their access grows, new people are
+  added; existing entries are never overwritten.
+- **Admins** see automatic names, with their own mapping applied on top as overrides. An admin's
+  mapping starts empty, and "reset" returns a person to their automatic name.
+
 Accounts live in `app-data/app.db` (gitignored). Use `WHATSAPP_APP_DATA_DIR` to put them elsewhere.
 
 `next dev` and `next start` listen on every network interface by default. Use `-H 127.0.0.1` to keep
@@ -94,6 +107,7 @@ lib/whatsapp/
   client.ts       browser fetchers for the API
 lib/auth/         accounts, passwords, sessions, setup token, server actions (app-data/app.db)
 lib/access/       dal.ts (session → data source gate), snapshot.ts (per-account filtered copies)
+lib/names/        per-account contact-name mappings (store, editor rows, server action)
 lib/admin/        admin-only server actions
 app/(auth)/       /login, /setup
 app/(explorer)/   everything behind sign-in, incl. /admin

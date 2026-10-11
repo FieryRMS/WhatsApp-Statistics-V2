@@ -90,6 +90,8 @@ export interface QuotedMessage {
   sender: Participant
   kind: MessageKind
   preview: string
+  /** Same shape as Message.mentions, for @mentions inside the quoted text. */
+  mentions: Record<string, string>
   thumbnailUrl: string | null
 }
 

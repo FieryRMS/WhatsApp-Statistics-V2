@@ -4,8 +4,10 @@ import { cache } from "react"
 import { redirect } from "next/navigation"
 
 import { readSession, type Session } from "../auth/session"
+import type { User } from "../auth/store"
 import { needsSetup } from "../auth/setup"
-import { primarySource, runWithSource, type DataSource } from "../whatsapp/db"
+import { namesFile } from "../names/store"
+import { getSource, primaryPaths, runWithSource, type DataSource } from "../whatsapp/db"
 import { ensureSnapshot } from "./snapshot"
 
 /**
@@ -35,8 +37,17 @@ export async function requireAdmin(): Promise<Session> {
   return session
 }
 
+/**
+ * Admins: the full data, with their own name mapping applied over automatic names.
+ * Everyone else: their filtered snapshot, with names only from their mapping.
+ */
+export async function sourceForUser(user: User): Promise<DataSource> {
+  if (user.role === "admin") return getSource({ ...primaryPaths, names: namesFile(user.id) })
+  return ensureSnapshot(user)
+}
+
 export async function sourceFor(session: Session): Promise<DataSource> {
-  return session.user.role === "admin" ? primarySource() : ensureSnapshot(session.user)
+  return sourceForUser(session.user)
 }
 
 const getRequestSource = cache(async (): Promise<DataSource> => sourceFor(await requireSession()))

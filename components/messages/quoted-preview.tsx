@@ -29,7 +29,7 @@ export function QuotedPreview({
       <span className="min-w-0 flex-1 px-2 py-1.5">
         <span className={cn("block truncate text-xs font-medium", color)}>{quoted.sender.name}</span>
         <span className="line-clamp-3 text-[13px] break-words whitespace-pre-wrap text-muted-foreground">
-          <RichText text={quoted.preview} linkify={false} />
+          <RichText text={quoted.preview} mentions={quoted.mentions} linkify={false} />
         </span>
       </span>
       {quoted.thumbnailUrl && (

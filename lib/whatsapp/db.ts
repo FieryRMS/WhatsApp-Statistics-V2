@@ -27,22 +27,32 @@ import path from "node:path"
 
 export interface SourcePaths {
   db: string
-  waDb: string
-  contacts: string
+  /** wa.db, or null when this source may not use it (restricted accounts). */
+  waDb: string | null
+  /** Global contacts.json overrides shipped with the data, or null. */
+  contacts: string | null
   /** Folder containing "Media/", or null when this source may not serve media files. */
   mediaRoot: string | null
+  /** The viewing account's name mapping (lib/names/store.ts), or null for none. */
+  names: string | null
+  /** true = names come only from `names`; every automatic name source is off (restricted accounts). */
+  namesOnly: boolean
 }
 
-const dataDir = process.env.WHATSAPP_DATA_DIR ?? path.join(process.cwd(), "whatsapp-data")
+const dataDir = process.env.WHATSAPP_DATA_DIR ?? path.join(/* turbopackIgnore: true */ process.cwd(), "whatsapp-data")
 
+/** The full WhatsApp data with automatic names and no account mapping. */
 export const primaryPaths: SourcePaths = {
   db: process.env.WHATSAPP_DB_PATH ?? path.join(dataDir, "msgstore.db"),
   waDb: process.env.WHATSAPP_WA_DB_PATH ?? path.join(dataDir, "wa.db"),
   contacts: process.env.WHATSAPP_CONTACTS ?? path.join(dataDir, "contacts.json"),
   mediaRoot: process.env.WHATSAPP_MEDIA_DIR ?? dataDir,
+  names: null,
+  namesOnly: false,
 }
 
-function stamp(p: string) {
+function stamp(p: string | null) {
+  if (!p) return "-"
   try {
     const s = fs.statSync(p)
     return `${s.mtimeMs}:${s.size}`
@@ -52,8 +62,8 @@ function stamp(p: string) {
 }
 
 /** Fingerprint of a set of files; changes when any is replaced, added or removed. */
-export function filesVersion(p: Pick<SourcePaths, "db" | "waDb" | "contacts">): string {
-  return [p.db, p.waDb, p.contacts].map(stamp).join("|")
+export function filesVersion(p: Pick<SourcePaths, "db" | "waDb" | "contacts"> & { names?: string | null }): string {
+  return [p.db, p.waDb, p.contacts, p.names ?? null].map(stamp).join("|")
 }
 
 /**
@@ -131,6 +141,7 @@ export class DataSource {
 
   clearCache() {
     this.values.clear()
+    this.versionCheck = { at: 0, value: "" }
   }
 
   close() {
@@ -155,7 +166,7 @@ const scope = (globalForDb.__waScope ??= new AsyncLocalStorage<DataSource>())
 
 /** The shared DataSource for a set of paths (one connection/cache per distinct config). */
 export function getSource(paths: SourcePaths): DataSource {
-  const key = JSON.stringify([paths.db, paths.waDb, paths.contacts, paths.mediaRoot])
+  const key = JSON.stringify([paths.db, paths.waDb, paths.contacts, paths.mediaRoot, paths.names, paths.namesOnly])
   let s = sources.get(key)
   if (!s) {
     s = new DataSource(paths)
@@ -174,8 +185,14 @@ export function dropSource(dbPath: string) {
   }
 }
 
+/** The full data with automatic names only — for admin-side checks and seeding name mappings. */
 export function primarySource(): DataSource {
   return getSource(primaryPaths)
+}
+
+/** Drop cached values of every source that reads `namesFile`, so an edit shows up immediately. */
+export function invalidateNames(namesFile: string) {
+  for (const s of sources.values()) if (s.paths.names === namesFile) s.clearCache()
 }
 
 /** Run `fn` with `source` as the data source for every query helper it calls. */

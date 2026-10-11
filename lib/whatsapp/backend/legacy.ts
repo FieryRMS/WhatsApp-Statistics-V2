@@ -282,11 +282,12 @@ export const legacyBackend: Backend = {
       data: string | null
       media_caption: string | null
       media_name: string | null
+      mentioned_jids: string | null
       target_id: number | null
       target_has_thumb: number
     }>(
       `SELECT q._id AS id, q.key_remote_jid AS jid, q.key_from_me AS from_me, q.remote_resource,
-         CAST(q.media_wa_type AS INTEGER) AS wa_type, q.data, q.media_caption, q.media_name,
+         CAST(q.media_wa_type AS INTEGER) AS wa_type, q.data, q.media_caption, q.media_name, q.mentioned_jids,
          t._id AS target_id,
          ${opt(
            "message_thumbnails",
@@ -312,6 +313,7 @@ export const legacyBackend: Backend = {
         caption: r.media_caption,
         fileName: r.media_name,
         thumbnailUrl: r.target_id && r.target_has_thumb ? `/api/messages/${r.target_id}/thumbnail` : null,
+        mentions: r.mentioned_jids ? r.mentioned_jids.split(",").map((j) => j.trim()).filter(Boolean) : [],
       })
     }
     return out

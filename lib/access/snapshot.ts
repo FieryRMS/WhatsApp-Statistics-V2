@@ -6,8 +6,21 @@ import { DatabaseSync } from "node:sqlite"
 import path from "node:path"
 
 import { appDataDir, getSnapshotRecord, listGrants, putSnapshotRecord, deleteSnapshotRecord, type Grant, type User } from "../auth/store"
-import { dropSource, filesVersion, getSource, openReadOnly, primaryPaths, sqliteUri, type DataSource } from "../whatsapp/db"
+import { namesFile, seedNames, type NameMap } from "../names/store"
+import { automaticName, canonicalJid } from "../whatsapp/contacts"
+import {
+  dropSource,
+  filesVersion,
+  getSource,
+  openReadOnly,
+  primaryPaths,
+  primarySource,
+  runWithSource,
+  sqliteUri,
+  type DataSource,
+} from "../whatsapp/db"
 import { javaStrings } from "../whatsapp/decoders"
+import { chatKind } from "../whatsapp/jid"
 
 /**
  * Per-account filtered copies ("snapshots") of the WhatsApp data.
@@ -22,7 +35,12 @@ import { javaStrings } from "../whatsapp/decoders"
  * Every build is verified before it is used.
  *
  * Snapshots are rebuilt automatically when the grants or the primary files change.
+ * They carry no wa.db/contacts.json: restricted accounts get names only from
+ * their own mapping file (lib/names/store.ts), which is seeded from here.
  */
+
+/** Bump when the snapshot contents change, so existing snapshots are rebuilt. */
+const SNAPSHOT_FORMAT = 2
 
 const snapshotsRoot = path.join(appDataDir, "snapshots")
 
@@ -62,6 +80,7 @@ const MODERN_MESSAGE_TABLES = [
   "message_vcard",
   "message_vcard_jid",
   "message_mentions",
+  "message_quoted_mentions",
   "message_group_invite",
 ]
 
@@ -237,7 +256,7 @@ function verify(c: Copier, layout: "legacy" | "modern") {
 }
 
 // ---------------------------------------------------------------------------
-// Names: filtered wa.db and contacts.json
+// Names: restricted accounts get names only from their mapping file, seeded here
 // ---------------------------------------------------------------------------
 
 /** Raw JID strings that appear anywhere in the snapshot. */
@@ -267,60 +286,41 @@ function visibleJids(out: Db, layout: "legacy" | "modern"): Set<string> {
   return set
 }
 
-function writeWaDb(file: string, visible: Set<string>) {
-  const out = new DatabaseSync(file)
-  out.exec(`
-    CREATE TABLE wa_contacts (jid TEXT PRIMARY KEY, display_name TEXT, wa_name TEXT);
-    CREATE TABLE wa_vnames (jid TEXT PRIMARY KEY, verified_name TEXT);
-  `)
-  if (fs.existsSync(primaryPaths.waDb)) {
-    const src = openReadOnly(primaryPaths.waDb)
-    try {
-      const has = (t: string, col?: string) =>
-        col
-          ? (src.prepare("SELECT name FROM pragma_table_info(?)").all(t) as { name: string }[]).some((c) => c.name === col)
-          : !!src.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t)
-      if (has("wa_contacts")) {
-        const waName = has("wa_contacts", "wa_name") ? "wa_name" : "NULL"
-        const ins = out.prepare("INSERT OR IGNORE INTO wa_contacts VALUES (?, ?, ?)")
-        for (const r of src.prepare(`SELECT jid, display_name, ${waName} AS wa_name FROM wa_contacts`).all() as {
-          jid: string
-          display_name: string | null
-          wa_name: string | null
-        }[])
-          if (visible.has(r.jid)) ins.run(r.jid, r.display_name, r.wa_name)
-      }
-      if (has("wa_vnames")) {
-        const ins = out.prepare("INSERT OR IGNORE INTO wa_vnames VALUES (?, ?)")
-        for (const r of src.prepare("SELECT jid, verified_name FROM wa_vnames").all() as { jid: string; verified_name: string | null }[])
-          if (visible.has(r.jid)) ins.run(r.jid, r.verified_name)
-      }
-    } finally {
-      src.close()
-    }
-  }
-  out.close()
-}
-
-function writeContactsJson(file: string, visible: Set<string>) {
-  let overrides: Record<string, string> = {}
-  try {
-    overrides = JSON.parse(fs.readFileSync(primaryPaths.contacts, "utf8"))
-  } catch {
-    // optional
-  }
-  const filtered = Object.fromEntries(Object.entries(overrides).filter(([jid]) => visible.has(jid)))
-  fs.writeFileSync(file, JSON.stringify(filtered))
-}
-
 // ---------------------------------------------------------------------------
 // Build + lifecycle
 // ---------------------------------------------------------------------------
 
 function grantsHash(grants: Grant[]) {
   return createHash("sha256")
-    .update(JSON.stringify(grants.map((g) => [g.chatJid, g.fromTs, g.toTs]).sort()))
+    .update(JSON.stringify([SNAPSHOT_FORMAT, grants.map((g) => [g.chatJid, g.fromTs, g.toTs]).sort()]))
     .digest("hex")
+}
+
+/**
+ * Add everyone visible in the snapshot to the account's name mapping, with the
+ * name they'd see automatically (or null = phone number). Existing entries —
+ * including names the account or an admin changed or hid — are left alone.
+ */
+function seedNamesFromSnapshot(userId: number, dir: string): number {
+  const db = openReadOnly(path.join(dir, "msgstore.db"))
+  let visible: Set<string>
+  try {
+    const legacy = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages'").get()
+    visible = visibleJids(db, legacy ? "legacy" : "modern")
+  } finally {
+    db.close()
+  }
+  const seed: NameMap = {}
+  runWithSource(primarySource(), () => {
+    for (const jid of visible) {
+      if (chatKind(jid) !== "individual" || !/^\d+@/.test(jid)) continue
+      const id = canonicalJid(jid)
+      if (id in seed) continue
+      const auto = automaticName(id)
+      seed[id] = auto ? (auto.hint ? `~${auto.name}` : auto.name) : null
+    }
+  })
+  return seedNames(userId, seed)
 }
 
 function userDir(userId: number) {
@@ -359,10 +359,7 @@ function build(userId: number, grants: Grant[]): BuildResult {
 
       messages = c.count(`SELECT COUNT(*) AS n FROM main.${layout === "modern" ? "message" : "messages"}`)
       chats = new Set(grants.map((g) => g.chatJid)).size
-      const visible = visibleJids(out, layout)
       out.exec("DETACH DATABASE src")
-      writeWaDb(path.join(dir, "wa.db"), visible)
-      writeContactsJson(path.join(dir, "contacts.json"), visible)
     } finally {
       out.close()
     }
@@ -376,10 +373,13 @@ function build(userId: number, grants: Grant[]): BuildResult {
 function sourceFor(dir: string, user: User): DataSource {
   return getSource({
     db: path.join(dir, "msgstore.db"),
-    waDb: path.join(dir, "wa.db"),
-    contacts: path.join(dir, "contacts.json"),
+    waDb: null,
+    contacts: null,
     // Media files are served only to accounts allowed to see them.
     mediaRoot: user.mediaAccess ? primaryPaths.mediaRoot : null,
+    // Names come only from the account's own mapping.
+    names: namesFile(user.id),
+    namesOnly: true,
   })
 }
 
@@ -408,6 +408,7 @@ export async function ensureSnapshot(user: User): Promise<DataSource> {
   const wantVersion = filesVersion(primaryPaths)
   const rec = getSnapshotRecord(user.id)
   if (rec && rec.grantsHash === wantHash && rec.sourceVersion === wantVersion && fs.existsSync(path.join(rec.dir, "msgstore.db"))) {
+    if (!fs.existsSync(namesFile(user.id))) seedNamesFromSnapshot(user.id, rec.dir)
     return sourceFor(rec.dir, user)
   }
 
@@ -416,9 +417,12 @@ export async function ensureSnapshot(user: User): Promise<DataSource> {
   const job = (async () => {
     try {
       const result = build(user.id, grants)
+      const seeded = seedNamesFromSnapshot(user.id, result.dir)
       putSnapshotRecord({ userId: user.id, dir: result.dir, grantsHash: wantHash, sourceVersion: wantVersion, builtAt: Date.now() })
       cleanup(user.id, result.dir)
-      console.log(`[access] built snapshot for user ${user.id}: ${result.messages} messages in ${result.chats} chats (${result.layout}, ${result.ms} ms)`)
+      console.log(
+        `[access] built snapshot for user ${user.id}: ${result.messages} messages in ${result.chats} chats (${result.layout}, ${result.ms} ms); ${seeded} new name entries`
+      )
       return sourceFor(result.dir, user)
     } finally {
       inFlight.delete(user.id)
