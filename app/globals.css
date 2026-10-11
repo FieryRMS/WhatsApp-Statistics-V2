@@ -38,6 +38,13 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    --color-chat-bg: var(--chat-bg);
+    --color-bubble-in: var(--bubble-in);
+    --color-bubble-out: var(--bubble-out);
+    --color-bubble-meta: var(--bubble-meta);
+    --color-system-chip: var(--system-chip);
+    --color-wa-accent: var(--wa-accent);
+    --color-tick-read: var(--tick-read);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -80,6 +87,13 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --chat-bg: #efeae2;
+    --bubble-in: #ffffff;
+    --bubble-out: #d9fdd3;
+    --bubble-meta: #667781;
+    --system-chip: #ffffff;
+    --wa-accent: #00a884;
+    --tick-read: #53bdeb;
 }
 
 .dark {
@@ -114,6 +128,13 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --chat-bg: #0b141a;
+    --bubble-in: #202c33;
+    --bubble-out: #005c4b;
+    --bubble-meta: #8696a0;
+    --system-chip: #182229;
+    --wa-accent: #00a884;
+    --tick-read: #53bdeb;
 }
 
 @layer base {
@@ -126,4 +147,20 @@
   html {
     @apply font-sans;
     }
+}
+@layer utilities {
+  /* Flash a message that was jumped to */
+  .message-highlight {
+    animation: message-highlight 2s ease-out;
+  }
+}
+
+@keyframes message-highlight {
+  0%,
+  40% {
+    background-color: color-mix(in oklab, var(--wa-accent) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
 }

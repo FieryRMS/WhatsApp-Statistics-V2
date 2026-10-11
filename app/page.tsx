@@ -1,19 +1,20 @@
-import { Button } from "@/components/ui/button"
+import { Lock, MessageSquareText } from "lucide-react"
 
-export default function Page() {
+import { SidebarTrigger } from "@/components/ui/sidebar"
+
+export default function Home() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
+    <div className="relative flex h-svh flex-col items-center justify-center gap-4 border-b-[6px] border-wa-accent bg-chat-bg px-6 text-center">
+      <SidebarTrigger className="absolute top-3 left-3 md:hidden" />
+      <MessageSquareText className="size-16 text-wa-accent" strokeWidth={1.25} />
+      <h1 className="text-3xl font-light">WhatsApp Stats</h1>
+      <p className="max-w-md text-sm text-muted-foreground">
+        Pick a chat from the sidebar to browse its history. Messages load as you scroll, and you can jump to any date
+        from the chat header.
+      </p>
+      <p className="absolute bottom-8 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Lock className="size-3" /> Read-only. Your database never leaves this machine.
+      </p>
     </div>
   )
 }

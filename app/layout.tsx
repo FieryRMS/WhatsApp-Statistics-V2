@@ -2,10 +2,15 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
+import { connection } from "next/server"
+
+import { ChatSidebar } from "@/components/chat/chat-sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { listChats } from "@/lib/whatsapp/queries"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -19,11 +24,14 @@ export const metadata: Metadata = {
   description: "Explore and analyze your WhatsApp database",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  await connection()
+  const chats = listChats()
+
   return (
     <html
       lang="en"
@@ -33,7 +41,10 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <TooltipProvider>
-            {children}
+            <SidebarProvider style={{ "--sidebar-width": "26rem" } as React.CSSProperties}>
+              <ChatSidebar chats={chats} />
+              <SidebarInset className="min-w-0">{children}</SidebarInset>
+            </SidebarProvider>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>
