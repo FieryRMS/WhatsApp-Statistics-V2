@@ -374,6 +374,10 @@ export function StatChart({
         />
       )}
       <Brush
+        // Recharts' Brush keeps its scale from the previous data; when the number of
+        // points changes (e.g. month → week) it renders one frame with NaN positions.
+        // A fresh Brush per timeline avoids that.
+        key={`${result.query.groupBy}:${n}:${result.categories[0]?.key ?? ""}`}
         dataKey="i"
         height={26}
         travellerWidth={8}
