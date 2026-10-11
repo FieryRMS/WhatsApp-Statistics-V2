@@ -8,7 +8,7 @@ import "server-only"
  * Side tables vary between WhatsApp versions, so every one is optional: a
  * missing table just yields NULLs.
  */
-import { all, cached, get, hasTable, placeholders } from "../db"
+import { all, cached, currentSource, get, hasTable, placeholders } from "../db"
 import { WaType } from "../constants"
 import { chatKind } from "../jid"
 import { emptyRow, type Backend, type ChatStat, type RawQuote, type RawReaction, type RawRow } from "./types"
@@ -398,8 +398,77 @@ function load(sql: string, ...params: (string | number)[]): RawRow[] {
   return rows.map((r) => toRaw(r, side))
 }
 
+const likePattern = (term: string) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+
 export const modernBackend: Backend = {
   name: "modern",
+
+  scanMessages(cb) {
+    const chatJid = new Map([...chatIds()].map(([jid, id]) => [id, jid]))
+    const voice = hasTable("message_media") ? "(SELECT mime_type FROM message_media mm WHERE mm.message_row_id = m._id)" : "NULL"
+    const st = currentSource().stmt(
+      `SELECT m._id AS id, m.chat_row_id AS chat, m.from_me, sj.raw_string AS sender, m.timestamp,
+         m.message_type AS type, m.text_data AS text, m.origin,
+         CASE WHEN m.message_type = ${WaType.AUDIO} THEN ${voice} END AS mime
+       FROM message m LEFT JOIN jid sj ON sj._id = m.sender_jid_row_id
+       WHERE m.message_type IS NOT ${ModernType.SYSTEM}
+       ORDER BY m._id`
+    )
+    for (const r of st.iterate() as Iterable<{
+      id: number
+      chat: number
+      from_me: number
+      sender: string | null
+      timestamp: number
+      type: number | null
+      text: string | null
+      origin: number | null
+      mime: string | null
+    }>) {
+      const jid = chatJid.get(r.chat)
+      if (!jid) continue
+      const fromMe = !!r.from_me
+      const type = r.type ?? -1
+      cb({
+        id: r.id,
+        chatJid: jid,
+        fromMe,
+        senderJid: fromMe ? null : (r.sender ?? (chatKind(jid) === "individual" ? jid : null)),
+        timestamp: r.timestamp,
+        type,
+        text: r.text,
+        voiceNote: type === WaType.AUDIO && (r.origin === 1 || (r.mime ?? "").includes("opus")),
+        revoked: type === WaType.REVOKED || type === ModernType.ADMIN_REVOKED,
+      })
+    }
+  },
+
+  scanReactions(cb) {
+    if (!hasTable("message_add_on") || !hasTable("message_add_on_reaction")) return
+    const st = currentSource().stmt(
+      `SELECT a.parent_message_row_id AS pid, a.from_me, j.raw_string AS sender, r.reaction, a.timestamp AS ts
+       FROM message_add_on a JOIN message_add_on_reaction r ON r.message_add_on_row_id = a._id
+       LEFT JOIN jid j ON j._id = a.sender_jid_row_id WHERE r.reaction IS NOT NULL AND r.reaction != ''`
+    )
+    for (const r of st.iterate() as Iterable<{ pid: number; from_me: number; sender: string | null; reaction: string; ts: number }>)
+      cb({ messageId: r.pid, senderJid: r.from_me ? null : r.sender, emoji: r.reaction, timestamp: r.ts })
+  },
+
+  scanMentions(cb) {
+    if (!hasTable("message_mentions")) return
+    const st = currentSource().stmt(
+      "SELECT mn.message_row_id AS id, j.raw_string AS jid FROM message_mentions mn JOIN jid j ON j._id = mn.jid_row_id"
+    )
+    for (const r of st.iterate() as Iterable<{ id: number; jid: string }>) cb({ messageId: r.id, jid: r.jid })
+  },
+
+  searchText(term, cb) {
+    const st = currentSource().stmt(
+      `SELECT _id AS id, text_data AS text FROM message
+       WHERE text_data LIKE ? ESCAPE '\\' AND message_type IS NOT ${ModernType.SYSTEM}`
+    )
+    for (const r of st.iterate(likePattern(term)) as Iterable<{ id: number; text: string }>) cb(r)
+  },
 
   chats(): ChatStat[] {
     return all<{

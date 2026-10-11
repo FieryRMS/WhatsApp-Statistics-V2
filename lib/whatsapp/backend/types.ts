@@ -116,8 +116,31 @@ export interface ChatStat {
   createdAt: number | null
 }
 
+/** One message, as streamed for the statistics index (system notices excluded). */
+export interface ScanRow {
+  id: number
+  chatJid: string
+  fromMe: boolean
+  /** Raw sender JID for incoming messages; null when from me. */
+  senderJid: string | null
+  timestamp: number
+  type: number
+  /** Text or caption. */
+  text: string | null
+  voiceNote: boolean
+  revoked: boolean
+}
+
 export interface Backend {
   readonly name: "legacy" | "modern"
+  /** Stream every non-system message in id order. */
+  scanMessages(cb: (r: ScanRow) => void): void
+  /** Stream every reaction: target message id, reactor (null = me), emoji, time. */
+  scanReactions(cb: (r: { messageId: number; senderJid: string | null; emoji: string; timestamp: number }) => void): void
+  /** Stream every @mention: message id and the mentioned JID. */
+  scanMentions(cb: (r: { messageId: number; jid: string }) => void): void
+  /** Stream messages whose text contains `term` (case-insensitive for ASCII). */
+  searchText(term: string, cb: (r: { id: number; text: string }) => void): void
   chats(): ChatStat[]
   range(jid: string): { first: number | null; last: number | null }
   byIds(ids: number[]): RawRow[]

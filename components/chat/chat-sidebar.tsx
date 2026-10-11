@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Archive, BookUser, LogOut, MessageSquareText, Search, Shield } from "lucide-react"
+import { Archive, BarChart3, BookUser, LogOut, MessageSquareText, Search, Shield } from "lucide-react"
 
 import { ChatAvatar } from "./chat-avatar"
 import {
@@ -87,6 +87,11 @@ function UserFooter({ user }: { user: { username: string; role: "admin" | "user"
         <div className="truncate text-sm font-medium">{user.username}</div>
         <div className="text-xs text-muted-foreground">{user.role === "admin" ? "Admin · all chats" : "Restricted access"}</div>
       </div>
+      <Button asChild variant="ghost" size="icon" title="Statistics" aria-label="Statistics">
+        <Link href="/stats">
+          <BarChart3 />
+        </Link>
+      </Button>
       <Button asChild variant="ghost" size="icon" title="Contact names" aria-label="Contact names">
         <Link href="/names">
           <BookUser />

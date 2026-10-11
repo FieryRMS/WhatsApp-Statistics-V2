@@ -4,11 +4,13 @@ import "server-only"
  * Legacy layout: all messages in `messages` (Android, until ~2022).
  * See docs/msgstore-schema.md.
  */
-import { all, get, hasTable, placeholders } from "../db"
+import { all, currentSource, get, hasTable, placeholders } from "../db"
 import { Status, SystemAction, WaType } from "../constants"
 import { decodeJava, javaStrings } from "../decoders"
 import { chatKind } from "../jid"
 import { emptyRow, type Backend, type ChatStat, type RawQuote, type RawReaction, type RawRow, type RawSystem } from "./types"
+
+const likePattern = (term: string) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
 
 interface Row {
   id: number
@@ -49,6 +51,8 @@ interface Row {
   missed_video: number | null
   forward_score: number | null
 }
+
+const stmt = (sql: string) => currentSource().stmt(sql)
 
 const opt = (table: string, sql: string, fallback: string) => (hasTable(table) ? sql : fallback)
 
@@ -194,6 +198,70 @@ function toRaw(r: Row): RawRow {
 
 export const legacyBackend: Backend = {
   name: "legacy",
+
+  scanMessages(cb) {
+    const st = stmt(
+      `SELECT _id AS id, key_remote_jid AS jid, key_from_me AS from_me, remote_resource, timestamp,
+         CAST(media_wa_type AS INTEGER) AS type, data, media_caption, origin, media_mime_type AS mime
+       FROM messages
+       WHERE key_remote_jid != '-1' AND (status IS NOT 6 OR media_wa_type = '${WaType.MISSED_CALL}')
+       ORDER BY _id`
+    )
+    for (const r of st.iterate() as Iterable<{
+      id: number
+      jid: string
+      from_me: number
+      remote_resource: string | null
+      timestamp: number
+      type: number
+      data: string | null
+      media_caption: string | null
+      origin: number | null
+      mime: string | null
+    }>) {
+      const missed = r.type === WaType.MISSED_CALL
+      const fromMe = !!r.from_me && !missed
+      const individual = chatKind(r.jid) === "individual"
+      cb({
+        id: r.id,
+        chatJid: r.jid,
+        fromMe,
+        senderJid: fromMe ? null : individual ? r.jid : r.remote_resource || null,
+        timestamp: r.timestamp,
+        type: r.type,
+        // Text messages keep link-preview titles in media_caption; only use it as text for media.
+        text: r.type === WaType.TEXT ? r.data : r.data || r.media_caption,
+        voiceNote: r.type === WaType.AUDIO && (r.origin === 1 || (r.mime ?? "").includes("opus")),
+        revoked: r.type === WaType.REVOKED,
+      })
+    }
+  },
+
+  scanReactions(cb) {
+    if (!hasTable("message_add_on") || !hasTable("message_add_on_reaction")) return
+    const st = stmt(
+      `SELECT a.parent_message_row_id AS pid, a.from_me, j.raw_string AS sender, r.reaction, a.timestamp AS ts
+       FROM message_add_on a JOIN message_add_on_reaction r ON r.message_add_on_row_id = a._id
+       LEFT JOIN jid j ON j._id = a.sender_jid_row_id WHERE r.reaction IS NOT NULL AND r.reaction != ''`
+    )
+    for (const r of st.iterate() as Iterable<{ pid: number; from_me: number; sender: string | null; reaction: string; ts: number }>)
+      cb({ messageId: r.pid, senderJid: r.from_me ? null : r.sender, emoji: r.reaction, timestamp: r.ts })
+  },
+
+  scanMentions(cb) {
+    const st = stmt("SELECT _id AS id, mentioned_jids AS m FROM messages WHERE mentioned_jids IS NOT NULL AND mentioned_jids != ''")
+    for (const r of st.iterate() as Iterable<{ id: number; m: string }>)
+      for (const jid of r.m.split(",")) if (jid.trim()) cb({ messageId: r.id, jid: jid.trim() })
+  },
+
+  searchText(term, cb) {
+    const st = stmt(
+      `SELECT _id AS id, COALESCE(data, media_caption) AS text FROM messages
+       WHERE (data LIKE ?1 ESCAPE '\\' OR (media_wa_type != '0' AND media_caption LIKE ?1 ESCAPE '\\'))
+         AND (status IS NOT 6)`
+    )
+    for (const r of st.iterate(likePattern(term)) as Iterable<{ id: number; text: string }>) cb(r)
+  },
 
   chats(): ChatStat[] {
     const meta = new Map(

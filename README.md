@@ -28,6 +28,36 @@ You can override these paths with `WHATSAPP_DATA_DIR`, `WHATSAPP_DB_PATH`, `WHAT
 
 See [docs/msgstore-schema.md](docs/msgstore-schema.md) for the reverse-engineered schema and message types.
 
+## Statistics
+
+`/stats` (chart icon in the sidebar) is a graph builder:
+
+1. **What to count:** messages, words, characters, average length, media, emojis, a word or phrase,
+   reactions given or received, tags made or received, or active people. Add several to compare
+   them on one chart.
+2. **Group by:** day, week, month or year, hour of day, day of week, person, chat, message type,
+   emoji, or a single total. Time axes can also rank the busiest periods.
+3. **Filters:** chats, people, message types, dates, words and emojis, for the whole chart or per series.
+   Each series can be **split** into one line per person, chat, type, emoji, weekday, hour or year.
+   The top 7 are shown and the rest fold into "Other".
+4. **Display:** lines, area, bars, stacked bars or a heatmap. Values can be raw, a running total,
+   a share of the total, smoothed, or **indexed to each series' peak**. Use indexing to compare
+   series of different sizes on one axis; there are never two y-axes.
+
+Click any point, bar, cell or table row to open that moment in the chat. A time bucket opens at its
+first matching message, a category at its latest. When a point spans several chats, you pick one.
+
+"Ideas" holds about 30 ready-made statistics. **Save** keeps a statistic, and **Share with everyone**
+lists it for all accounts. **Copy link** encodes it in the URL.
+
+Statistics are JSON definitions, never SQL, validated in `lib/stats/schema.ts`. Each account runs
+them against its own data, so a shared statistic shows every viewer their own numbers. Chats or
+people the viewer can't access are removed from it before it reaches their browser.
+
+The first run builds an in-memory index of every message, about 2–3 s for 850k messages. After
+that, queries take milliseconds. Days are bucketed in the server's timezone, and messages with
+impossible timestamps are left out.
+
 ## Accounts and access
 
 On first start the server prints a one-time **setup token** to its console. Open `/setup` and use it
@@ -108,6 +138,7 @@ lib/whatsapp/
 lib/auth/         accounts, passwords, sessions, setup token, server actions (app-data/app.db)
 lib/access/       dal.ts (session → data source gate), snapshot.ts (per-account filtered copies)
 lib/names/        per-account contact-name mappings (store, editor rows, server action)
+lib/stats/        statistics: query types/schema, index, engine, presets, saved queries
 lib/admin/        admin-only server actions
 app/(auth)/       /login, /setup
 app/(explorer)/   everything behind sign-in, incl. /admin
