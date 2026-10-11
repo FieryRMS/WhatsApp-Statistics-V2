@@ -6,9 +6,11 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  Brush,
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -91,16 +93,106 @@ export function ChartLegend({ result, shape }: { result: StatResult; shape: "lin
 
 const CATEGORICAL = new Set(["person", "chat", "emoji", "kind", "none"])
 
+export type Zoom = [start: number, end: number] | null
+
+type ChartMouse = { activeLabel?: string | number; activeTooltipIndex?: number | string | null } | null | undefined
+
+/** Category index under the pointer — the x value (not the position), so it stays right while zoomed. */
+const pointerIndex = (s: ChartMouse): number | null => {
+  const v = s?.activeLabel ?? s?.activeTooltipIndex
+  return v == null || v === "" ? null : Number(v)
+}
+
 export function StatChart({
   result,
   onSelect,
+  zoom = null,
+  onZoom,
   height = 380,
 }: {
   result: StatResult
-  /** Clicked a category (x position); seriesIndex is set for heatmap cells and bars. */
+  /** Clicked a category (x position); seriesIndex is set for heatmap cells. */
   onSelect: (categoryIndex: number, seriesIndex?: number) => void
+  /** Visible category range on timelines (null = everything). */
+  zoom?: Zoom
+  onZoom?: (z: Zoom) => void
   height?: number
 }) {
+  const [drag, setDrag] = React.useState<{ a: number; b: number } | null>(null)
+  const [panning, setPanning] = React.useState(false)
+  const wrapRef = React.useRef<HTMLDivElement>(null)
+
+  const horizontal = (result.chart === "bar" || result.chart === "stacked") && CATEGORICAL.has(result.query.groupBy)
+  const n = result.categories.length
+  // Timelines can be zoomed: drag across the plot, use the range slider, ctrl+scroll / pinch,
+  // and shift+drag (or a sideways trackpad swipe) to pan.
+  const zoomable = !!onZoom && result.chart !== "heatmap" && result.isTime && result.query.sort === "key" && !horizontal && n > 12
+  const range = zoom && zoom[1] < n && zoom[0] <= zoom[1] ? zoom : null
+  const start = range?.[0] ?? 0
+  const end = range?.[1] ?? n - 1
+
+  /** Where the pointer is across the plot area, 0 (left) … 1 (right). */
+  const plotFraction = (clientX: number) => {
+    const grid = wrapRef.current?.querySelector(".recharts-cartesian-grid")?.getBoundingClientRect()
+    if (!grid || grid.width <= 0) return 0.5
+    return Math.min(1, Math.max(0, (clientX - grid.left) / grid.width))
+  }
+  const setWindow = React.useCallback(
+    (a: number, b: number) => {
+      const width = b - a
+      if (width >= n - 1) return onZoom?.(null)
+      const lo = Math.max(0, Math.min(n - 1 - width, Math.round(a)))
+      onZoom?.([lo, lo + width])
+    },
+    [n, onZoom]
+  )
+
+  // Ctrl+wheel (and trackpad pinch, which browsers report as ctrl+wheel) zooms around the
+  // pointer; a sideways swipe pans. Native listener so preventDefault can stop page zoom.
+  React.useEffect(() => {
+    const el = wrapRef.current
+    if (!el || !zoomable) return
+    const onWheel = (e: WheelEvent) => {
+      const width = end - start
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        const f = plotFraction(e.clientX)
+        const anchor = start + f * width
+        const factor = Math.exp(Math.max(-1, Math.min(1, e.deltaY * 0.01)))
+        const next = Math.max(4, Math.min(n - 1, Math.round(width * factor)))
+        if (next !== width) setWindow(anchor - f * next, anchor - f * next + next)
+      } else if (range && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault()
+        const step = Math.round((e.deltaX / el.clientWidth) * width) || Math.sign(e.deltaX)
+        setWindow(start + step, end + step)
+      }
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [zoomable, start, end, n, range, setWindow])
+
+  /** Shift+drag pans the zoomed window (captured before the chart sees it, so it doesn't zoom). */
+  const onPanStart = (e: React.MouseEvent) => {
+    if (!zoomable || !range || !e.shiftKey) return
+    e.preventDefault()
+    e.stopPropagation()
+    const grid = wrapRef.current?.querySelector(".recharts-cartesian-grid")?.getBoundingClientRect()
+    const perPx = (end - start) / Math.max(1, grid?.width ?? 1)
+    const x0 = e.clientX
+    const [a0, b0] = [start, end]
+    setPanning(true)
+    const move = (ev: MouseEvent) => {
+      const shift = Math.round((x0 - ev.clientX) * perPx)
+      setWindow(a0 + shift, b0 + shift)
+    }
+    const up = () => {
+      setPanning(false)
+      window.removeEventListener("mousemove", move)
+      window.removeEventListener("mouseup", up)
+    }
+    window.addEventListener("mousemove", move)
+    window.addEventListener("mouseup", up)
+  }
   const data = React.useMemo(
     () =>
       result.categories.map((_, i) => {
@@ -113,7 +205,6 @@ export function StatChart({
 
   if (result.chart === "heatmap") return <Heatmap result={result} onSelect={onSelect} />
 
-  const horizontal = (result.chart === "bar" || result.chart === "stacked") && CATEGORICAL.has(result.query.groupBy)
   const tick = { fontSize: 11, fill: "var(--muted-foreground)" }
   const grid = <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="" vertical={horizontal} horizontal={!horizontal} />
   const valueAxisProps = {
@@ -132,23 +223,72 @@ export function StatChart({
     minTickGap: 16,
   }
   const tooltip = <Tooltip content={(p) => <ChartTooltip {...(p as TooltipContentProps<number, string>)} result={result} />} cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, fill: "var(--muted)", fillOpacity: 0.4 }} isAnimationActive={false} />
-  const onClick = (state: { activeTooltipIndex?: number | string | null; activeLabel?: string | number }) => {
-    const i = state?.activeTooltipIndex ?? state?.activeLabel
-    if (i != null && i !== "") onSelect(Number(i))
+  const mouse = zoomable
+    ? {
+        onMouseDown: (s: ChartMouse) => {
+          const i = pointerIndex(s)
+          if (i != null) setDrag({ a: i, b: i })
+        },
+        onMouseMove: (s: ChartMouse) => {
+          const i = pointerIndex(s)
+          if (drag && i != null && i !== drag.b) setDrag({ ...drag, b: i })
+        },
+        onMouseUp: () => {
+          if (!drag) return
+          setDrag(null)
+          // A drag across at least one point zooms; anything else is a click.
+          if (drag.a !== drag.b) onZoom!([Math.min(drag.a, drag.b), Math.max(drag.a, drag.b)])
+          else onSelect(drag.a)
+        },
+        onMouseLeave: () => setDrag(null),
+      }
+    : {
+        onClick: (s: ChartMouse) => {
+          const i = pointerIndex(s)
+          if (i != null) onSelect(i)
+        },
+      }
+  const common = {
+    data,
+    ...mouse,
+    margin: { top: 8, right: 16, bottom: 4, left: 0 },
+    style: { cursor: panning ? "grabbing" : drag ? "col-resize" : "pointer", userSelect: "none" as const },
   }
-  const common = { data, onClick, margin: { top: 8, right: 16, bottom: 4, left: 0 }, style: { cursor: "pointer" } }
+  const zoomLayers = zoomable && (
+    <>
+      {drag && drag.a !== drag.b && (
+        <ReferenceArea x1={drag.a} x2={drag.b} fill="var(--muted-foreground)" fillOpacity={0.15} strokeOpacity={0} ifOverflow="extendDomain" />
+      )}
+      <Brush
+        dataKey="i"
+        height={26}
+        travellerWidth={8}
+        stroke="var(--muted-foreground)"
+        fill="var(--card)"
+        startIndex={range?.[0] ?? 0}
+        endIndex={range?.[1] ?? n - 1}
+        tickFormatter={(i: number) => categoryLabel(result, i, true)}
+        onChange={(r: { startIndex?: number; endIndex?: number }) => {
+          const a = r.startIndex ?? 0
+          const b = r.endIndex ?? n - 1
+          onZoom!(a === 0 && b === n - 1 ? null : [a, b])
+        }}
+      />
+    </>
+  )
 
   if (result.chart === "line" || result.chart === "area") {
     const Chart = result.chart === "area" ? AreaChart : LineChart
     const stacked = result.chart === "area" && result.series.length > 1
     return (
-      <div style={{ height }}>
+      <div ref={wrapRef} style={{ height }} onMouseDownCapture={onPanStart}>
         <ResponsiveContainer width="100%" height="100%">
           <Chart {...common}>
             {grid}
             <XAxis {...catAxisProps} />
             <YAxis {...valueAxisProps} domain={result.unit === "%" && stacked ? [0, 100] : undefined} allowDataOverflow={result.unit === "%" && stacked} />
             {tooltip}
+            {zoomLayers}
             {result.series.map((s, si) =>
               result.chart === "area" ? (
                 <Area
@@ -191,7 +331,7 @@ export function StatChart({
   const last = result.series.length - 1
   const barHeight = horizontal ? Math.max(height, result.categories.length * 30 + 40) : height
   return (
-    <div style={{ height: barHeight }}>
+    <div ref={wrapRef} style={{ height: barHeight }} onMouseDownCapture={onPanStart}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart {...common} layout={horizontal ? "vertical" : "horizontal"} barCategoryGap="22%" barGap={2}>
           {grid}
@@ -217,10 +357,10 @@ export function StatChart({
               stroke={stacked ? "var(--background)" : undefined}
               strokeWidth={stacked ? 2 : 0}
               radius={!stacked || si === last ? (horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]) : 0}
-              onClick={(_, index) => onSelect(index, si)}
               isAnimationActive={false}
             />
           ))}
+          {zoomLayers}
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { requireSession } from "../access/dal"
 import { getUser } from "../auth/store"
-import { automaticName } from "../whatsapp/contacts"
+import { OWNER_KEY, automaticName } from "../whatsapp/contacts"
 import { primarySource, runWithSource } from "../whatsapp/db"
 import { peopleOf } from "./rows"
 import { MAX_NAME_LENGTH, applyNameChanges, type NameChange } from "./store"
@@ -38,6 +38,13 @@ export async function saveNamesAction(targetUserId: number, edits: NameEdit[]): 
   const changes: NameChange[] = []
   for (const e of edits) {
     if (typeof e?.jid !== "string" || !allowed.has(e.jid)) return { error: "That person isn't in this account's chats." }
+    if (e.jid === OWNER_KEY) {
+      // The phone owner: a name, or nothing (shown as "Phone owner").
+      const name = typeof e.name === "string" ? e.name.trim() : ""
+      if (name.length > MAX_NAME_LENGTH) return { error: `Names can be at most ${MAX_NAME_LENGTH} characters.` }
+      changes.push(name && !e.reset ? { jid: OWNER_KEY, name } : { jid: OWNER_KEY, reset: true })
+      continue
+    }
     if (e.reset) {
       if (!isAdmin) return { error: "Only admins can reset names." }
       if (target.role === "admin") {

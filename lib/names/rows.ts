@@ -2,7 +2,8 @@ import "server-only"
 
 import { sourceForUser } from "../access/dal"
 import type { User } from "../auth/store"
-import { automaticName, listPeople, participant } from "../whatsapp/contacts"
+import { OWNER_KEY, automaticName, listPeople, ownerName, participant } from "../whatsapp/contacts"
+import { DEFAULT_OWNER_LABEL } from "../whatsapp/viewer"
 import { primarySource, runWithSource } from "../whatsapp/db"
 import { phoneFromJid } from "../whatsapp/jid"
 import { readNames } from "./store"
@@ -20,11 +21,13 @@ export interface NameRow {
   suggestion: string | null
   /** Other identities with exactly the same mapped name — treated as the same person. */
   mergedWith: string[]
+  /** The phone owner's row (key "me"): "you" in the raw data. */
+  owner?: boolean
 }
 
-/** People `target` can see, as a set — used to validate edits. */
+/** People `target` can see (plus the phone owner), as a set — used to validate edits. */
 export async function peopleOf(target: User): Promise<Set<string>> {
-  return new Set(runWithSource(await sourceForUser(target), () => listPeople()))
+  return new Set([OWNER_KEY, ...runWithSource(await sourceForUser(target), () => listPeople())])
 }
 
 /**
@@ -34,8 +37,19 @@ export async function peopleOf(target: User): Promise<Set<string>> {
 export async function nameRows(target: User, withSuggestions: boolean): Promise<NameRow[]> {
   const source = await sourceForUser(target)
   const mapping = readNames(target.id) ?? {}
-  const rows = runWithSource(source, () =>
-    listPeople().map((jid) => ({
+  const rows: NameRow[] = runWithSource(source, (): NameRow[] => [
+    // The phone owner comes first: naming them here is what graphs and other viewers see.
+    {
+      jid: OWNER_KEY,
+      phone: null,
+      inMapping: OWNER_KEY in mapping,
+      mapped: mapping[OWNER_KEY] ?? null,
+      shown: ownerName() ?? DEFAULT_OWNER_LABEL,
+      suggestion: null as string | null,
+      mergedWith: [] as string[],
+      owner: true,
+    },
+    ...listPeople().map((jid) => ({
       jid,
       phone: phoneFromJid(jid),
       inMapping: jid in mapping,
@@ -43,18 +57,19 @@ export async function nameRows(target: User, withSuggestions: boolean): Promise<
       shown: participant(jid).name,
       suggestion: null as string | null,
       mergedWith: [] as string[],
-    }))
-  )
+    })),
+  ])
   // Same mapped name = same person.
   const byName = new Map<string, NameRow[]>()
   for (const r of rows) if (r.inMapping && r.mapped) byName.set(r.mapped, [...(byName.get(r.mapped) ?? []), r])
   for (const group of byName.values()) {
     if (group.length < 2) continue
-    for (const r of group) r.mergedWith = group.filter((o) => o !== r).map((o) => o.phone ?? "a privacy ID")
+    for (const r of group) r.mergedWith = group.filter((o) => o !== r).map((o) => (o.owner ? "the phone owner" : (o.phone ?? "a privacy ID")))
   }
   if (withSuggestions) {
     runWithSource(primarySource(), () => {
       for (const r of rows) {
+        if (r.owner) continue
         const auto = automaticName(r.jid)
         r.suggestion = auto ? (auto.hint ? `~${auto.name}` : auto.name) : null
       }

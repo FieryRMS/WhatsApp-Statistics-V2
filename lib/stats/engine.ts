@@ -1,6 +1,6 @@
 import "server-only"
 
-import { canonicalJid, chatName, participant, samePerson } from "../whatsapp/contacts"
+import { OWNER_KEY, canonicalJid, chatName, participant, samePerson } from "../whatsapp/contacts"
 import { listChats } from "../whatsapp/queries"
 import { viewer, type ViewerInfo } from "../whatsapp/viewer"
 import { KIND_LIST, ME, dayStart, statsIndex, termMatches, type StatsIndex } from "./stats-index"
@@ -84,7 +84,7 @@ function personIndex(ix: StatsIndex, personIdx: Map<string, number>, p: string, 
   if (p === ME) idx = 0
   else if (p === VIEWER) {
     const v = viewer()
-    idx = v.jid ? (personIdx.get(v.jid) ?? -1) : 0
+    idx = v.isOwner ? 0 : (personIdx.get(v.jid!) ?? -1)
   } else idx = personIdx.get(canonicalJid(p)) ?? -1
   return idx >= 0 ? grp[idx] : -1
 }
@@ -103,6 +103,11 @@ function personGroupsFor(ix: StatsIndex): Int32Array {
       continue
     }
     const rep = samePerson(jid)
+    // Numbers given the phone owner's name are the owner.
+    if (rep === OWNER_KEY) {
+      grp[i] = 0
+      continue
+    }
     const existing = repIdx.get(rep)
     if (existing === undefined) {
       repIdx.set(rep, i)
@@ -119,13 +124,15 @@ function groupSizes(grp: Int32Array): Int32Array {
   return sizes
 }
 
-/** Display name of a person index for the current viewer. */
+/**
+ * Display name of a person index. Graphs always use real names — never "You" —
+ * so a chart reads the same whoever is viewing; the phone owner is shown under
+ * the name set for them in the contact names.
+ */
 function personLabel(ix: StatsIndex, key: number, v: ViewerInfo): string {
   if (key < 0) return "Unknown"
-  if (key === 0) return v.jid ? v.ownerLabel : "You"
-  const jid = ix.people[key]
-  if (v.jids.has(jid)) return "You"
-  return participant(jid).name
+  if (key === 0) return v.ownerLabel
+  return participant(ix.people[key]).name
 }
 
 function rowPasses(ix: StatsIndex, f: CompiledFilter, row: number, emojiContainment: boolean): boolean {

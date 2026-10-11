@@ -2,7 +2,6 @@ import Link from "next/link"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { OwnerNameForm } from "@/components/viewer/owner-name-form"
 import { ViewerPicker } from "@/components/viewer/viewer-picker"
 import { requireSession, withData } from "@/lib/access/dal"
 import { peopleWithCounts } from "@/lib/stats/engine"
@@ -39,17 +38,14 @@ export default async function SettingsPage() {
           <CardHeader>
             <CardTitle>Phone owner&apos;s name</CardTitle>
             <CardDescription>
-              The data comes from one person&apos;s phone. Their messages show as “You” when they&apos;re viewing, and under this
-              name when someone else is. Saved for this account; it&apos;s part of its{" "}
+              The data comes from one person&apos;s phone. Name them in{" "}
               <Link href="/names" className="text-wa-accent hover:underline">
-                contact names
-              </Link>
-              .
+                Contact names
+              </Link>{" "}
+              (the pinned “Phone owner” row). That name is used in graphs and for anyone else viewing. Giving their other numbers the
+              same name merges them into the owner.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <OwnerNameForm initial={owner ?? ""} />
-          </CardContent>
         </Card>
       </div>
     </div>

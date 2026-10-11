@@ -45,7 +45,14 @@ See [docs/msgstore-schema.md](docs/msgstore-schema.md) for the reverse-engineere
    series of different sizes on one axis; there are never two y-axes.
 
 Click any point, bar, cell or table row to open that moment in the chat. **Back** returns to exactly
-the chart you were on, including edits, the table view and scroll position. A time bucket opens at its
+the chart you were on, including edits, zoom, the table view and scroll position.
+
+**Zoom:** on timelines, drag across the chart to zoom into that stretch, Ctrl+scroll or pinch to zoom
+around the cursor, or use the range slider underneath. Shift+drag (or a sideways trackpad swipe) pans.
+Double-click or press "Reset zoom" to see everything again.
+
+Graphs always use real names, never "You", so a chart reads the same whoever is viewing. The phone
+owner appears under the name set in Contact names. A time bucket opens at its
 first matching message, a category at its latest. When a point spans several chats, you pick one.
 
 "Ideas" holds about 30 ready-made statistics. **Save** keeps a statistic, and **Share with everyone**
@@ -90,10 +97,11 @@ shared, so every sign-in starts at **Who's viewing?**, where you pick yourself f
 the chats. You can change it anytime in **Settings** (or from the name in the sidebar footer). It is
 stored only on the session.
 
-When someone other than the owner is viewing, their messages show as "You" on the right. The
-owner's messages show under the **phone owner's name**, set in Settings and stored in the account's
-name mapping under the key `"me"`. This applies to chats, previews, quotes, reactions, system events
-and statistics. In the people filter, "You (whoever is viewing)" follows the viewer. The adjustment
+When someone other than the owner is viewing, their messages show as "You" on the right in chats.
+The owner's messages show under the **phone owner's name**. You set it in Contact names (the pinned
+"Phone owner" row), and it's stored in the account's mapping under the key `"me"`. This applies to
+chats, previews, quotes, reactions and system events. Graphs use real names throughout. In the people
+filter, "You (whoever is viewing)" follows the viewer. The adjustment
 is applied after caching (`lib/whatsapp/viewer.ts`), so sessions never see each other's view.
 
 ### Contact names
@@ -112,7 +120,8 @@ The account edits it on its **Contact names** page, and admins edit the same fil
 **Same person, several numbers:** give two or more numbers *exactly the same name* in an account's
 mapping and they count as one person for that account. Statistics combine them (rankings, splits,
 filters, active-people counts), and choosing either one in "Who's viewing" makes all of them "You".
-Only names set in the mapping merge people; automatic names never do. For the same reason, when a
+This includes the phone owner: give the owner's own number the owner's name, and it merges into the
+owner. Only names set in the mapping merge people; automatic names never do. For the same reason, when a
 mapping is seeded, a name that's already taken gets the number's last digits appended, e.g.
 `Mohsin Hossain (…4521)`. The Contact names editor lists merged people under **Same person**.
 

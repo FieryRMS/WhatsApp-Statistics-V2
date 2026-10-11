@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { BarChart3, Bookmark, Link2, Loader2, RotateCcw, Sparkles, Table2, Trash2, Users } from "lucide-react"
+import { BarChart3, Bookmark, Link2, Loader2, RotateCcw, Sparkles, Table2, Trash2, Users, ZoomOut } from "lucide-react"
 import { toast } from "sonner"
 
 import { QueryBuilder } from "./query-builder"
-import { ChartLegend, DataTable, StatChart, categoryLabel, formatValue, seriesColor } from "./stat-chart"
+import { ChartLegend, DataTable, StatChart, categoryLabel, formatValue, seriesColor, type Zoom } from "./stat-chart"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -40,6 +40,7 @@ interface ReturnState {
   query: StatQuery
   view: "chart" | "table"
   current: SavedSummary | null
+  zoom: Zoom
   scroll: [number, number]
   at: number
 }
@@ -76,6 +77,7 @@ export function StatsWorkbench({
   const [loading, setLoading] = React.useState(true)
   const [view, setView] = React.useState<"chart" | "table">(initialView)
   const [selection, setSelection] = React.useState<Selection | null>(null)
+  const [zoom, setZoom] = React.useState<Zoom>(null)
   const [dialog, setDialog] = React.useState<"presets" | "saved" | "save" | null>(null)
 
   // Run the query whenever it changes (debounced); keep the previous chart visible meanwhile.
@@ -106,20 +108,10 @@ export function StatsWorkbench({
     }
   }, [query])
 
-  // Mirror the exact chart into the URL (replacing, not pushing, history entries), so
-  // going back from a chat — or reloading, or bookmarking — returns to this chart.
-  React.useEffect(() => {
-    const params = new URLSearchParams()
-    if (current) params.set("id", String(current.id))
-    params.set("q", encodeQuery(query))
-    if (view === "table") params.set("view", "table")
-    const next = `/stats?${params}`
-    if (`${location.pathname}${location.search}` !== next) window.history.replaceState(null, "", next)
-  }, [query, view, current])
-
-  // Going into a chat and pressing Back must land on exactly this chart. The router may
-  // rewrite this history entry's URL, so the state is also saved in sessionStorage just
-  // before leaving, keyed by the URLs this entry can come back with.
+  // Going into a chat and pressing Back must land on exactly this chart (edits, view, zoom,
+  // scroll). Rewriting the URL with history.replaceState confuses the router's Back handling,
+  // so the state is saved in sessionStorage just before leaving and restored when this
+  // entry comes back. "Copy link" builds its own URL from the query.
   const asideRef = React.useRef<HTMLElement>(null)
   const mainRef = React.useRef<HTMLElement>(null)
   const entryUrl = React.useRef<string | null>(null)
@@ -135,6 +127,7 @@ export function StatsWorkbench({
         setQuery(saved.query)
         setView(saved.view)
         setCurrent(saved.current)
+        setZoom(saved.zoom ?? null)
         /* eslint-enable react-hooks/set-state-in-effect */
         requestAnimationFrame(() => {
           if (asideRef.current) asideRef.current.scrollTop = saved.scroll[0]
@@ -152,6 +145,7 @@ export function StatsWorkbench({
         query,
         view,
         current,
+        zoom,
         scroll: [asideRef.current?.scrollTop ?? 0, mainRef.current?.scrollTop ?? 0],
         at: Date.now(),
       }
@@ -161,8 +155,14 @@ export function StatsWorkbench({
     }
   }
 
-  const load = (q: StatQuery, s: SavedSummary | null = null) => {
+  /** A different statistic: its x-axis changes, so any zoom no longer applies. */
+  const changeQuery = (q: StatQuery) => {
     setQuery(q)
+    setZoom(null)
+  }
+
+  const load = (q: StatQuery, s: SavedSummary | null = null) => {
+    changeQuery(q)
     setCurrent(s)
     setDialog(null)
     setSelection(null)
@@ -222,7 +222,7 @@ export function StatsWorkbench({
               <RotateCcw /> Reset
             </Button>
           </div>
-          <QueryBuilder query={query} onChange={(q) => setQuery(q)} catalog={catalog} />
+          <QueryBuilder query={query} onChange={changeQuery} catalog={catalog} />
         </aside>
 
         <main ref={mainRef} className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
@@ -273,8 +273,26 @@ export function StatsWorkbench({
                     {result.stats.indexMs ? ` (indexed in ${(result.stats.indexMs / 1000).toFixed(1)} s)` : ""}
                   </span>
                 </div>
-                {view === "chart" ? <StatChart result={result} onSelect={select} /> : <DataTable result={result} onSelect={select} />}
-                <p className="text-xs text-muted-foreground">Tip: click any point, bar or cell to jump to that moment in the chat.</p>
+                {view === "chart" ? (
+                  <div onDoubleClick={() => setZoom(null)}>
+                    <StatChart result={result} onSelect={select} zoom={zoom} onZoom={setZoom} />
+                  </div>
+                ) : (
+                  <DataTable result={result} onSelect={select} />
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Tip: click any point, bar or cell to jump to that moment in the chat.
+                    {result.isTime && result.query.sort === "key" && result.categories.length > 12 && view === "chart" && (
+                      <> Zoom: drag across the chart, Ctrl+scroll or pinch, or use the slider. Shift+drag to pan; double-click to zoom out.</>
+                    )}
+                  </p>
+                  {zoom && view === "chart" && (
+                    <Button variant="outline" size="sm" onClick={() => setZoom(null)}>
+                      <ZoomOut /> Reset zoom
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </div>
