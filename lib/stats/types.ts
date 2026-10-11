@@ -70,7 +70,7 @@ export const MEDIA_KINDS: Kind[] = ["image", "video", "gif", "voice", "audio", "
 export interface Filters {
   /** Chat JIDs. */
   chats?: string[]
-  /** Person JIDs, or "me". */
+  /** Person JIDs, "me" (the phone owner) or "viewer" (whoever is viewing this session). */
   people?: string[]
   kinds?: Kind[]
   /** Inclusive start, ms. */

@@ -248,7 +248,7 @@ export const PRESETS: Preset[] = [
     description: "Your messages against everyone else's, over time.",
     query: q({
       series: [
-        { id: "s1", metric: "messages", label: "You", filters: { people: ["me"] } },
+        { id: "s1", metric: "messages", label: "You", filters: { people: ["viewer"] } },
         { id: "s2", metric: "messages", label: "Everyone (incl. you)" },
       ],
       groupBy: "month",

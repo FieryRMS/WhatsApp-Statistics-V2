@@ -19,6 +19,7 @@ import { messagePreview } from "./format"
 import { chatKind } from "./jid"
 import { mapMessage, mapQuote, mediaUrl, thumbnailUrl, type MapContext } from "./mapper"
 import { resolveMediaPath } from "./media"
+import { viewChat, viewMessage, viewer } from "./viewer"
 import type { ChatAnchor, ChatDetails, ChatSummary, Message, MessagePage, QuotedMessage, Reaction } from "./types"
 
 // Derived data is memoized on globalThis; drop it when this module is (re)loaded so
@@ -43,8 +44,19 @@ function hydrate(rows: RawRow[]): Message[] {
   return rows.map((r) => mapMessage(r, ctx))
 }
 
-export function getMessagesByIds(ids: number[]): Message[] {
+/** Raw (owner's point of view) — used for cached summaries. */
+function rawMessagesByIds(ids: number[]): Message[] {
   return hydrate(backend().byIds(ids))
+}
+
+function present(rows: RawRow[]): Message[] {
+  const v = viewer()
+  return hydrate(rows).map((m) => viewMessage(m, v))
+}
+
+export function getMessagesByIds(ids: number[]): Message[] {
+  const v = viewer()
+  return rawMessagesByIds(ids).map((m) => viewMessage(m, v))
 }
 
 export function getMessageById(id: number): Message | null {
@@ -61,12 +73,15 @@ export function getMessageById(id: number): Message | null {
  * still reachable via getChat(). Cached until the data files change.
  */
 export function listChats(): ChatSummary[] {
-  return cached("chats", () =>
+  const chats = cached("chats", () =>
     chatStats()
       .filter((c) => c.realCount > 0)
       .map(summarize)
       .sort((a, b) => (b.lastMessage?.timestamp ?? 0) - (a.lastMessage?.timestamp ?? 0))
   )
+  // The cache is viewer-neutral; present it for this session's viewer on the way out.
+  const v = viewer()
+  return chats.map((c) => viewChat(c, v))
 }
 
 const chatStats = () => cached("chatStats", () => backend().chats())
@@ -75,7 +90,7 @@ const chatStatsByJid = () => cached("chatStatsByJid", () => new Map(chatStats().
 /** Preview message of every chat (last non-system message), loaded in one batch. */
 const previewId = (c: ChatStat) => c.lastRealId ?? c.lastId
 const lastMessages = () =>
-  cached("lastMessages", () => new Map(getMessagesByIds(chatStats().map(previewId)).map((m) => [m.id, m])))
+  cached("lastMessages", () => new Map(rawMessagesByIds(chatStats().map(previewId)).map((m) => [m.id, m])))
 
 function summarize(c: ChatStat): ChatSummary {
   const m = lastMessages().get(previewId(c))
@@ -93,6 +108,8 @@ function summarize(c: ChatStat): ChatSummary {
           timestamp: m.timestamp,
           fromMe: m.fromMe && !system,
           senderName: m.sender && !system && kind !== "individual" ? m.sender.name : null,
+          senderJid: m.sender?.jid ?? null,
+          system,
           // Resolve "@<number>" mentions to names, as the chat list does in WhatsApp
           preview: messagePreview(m)
             .replace(/@(\d{5,})/g, (raw, user: string) => (m.mentions[user] ? `@${m.mentions[user].replace(/^~/, "")}` : raw))
@@ -107,7 +124,7 @@ export function getChat(jid: string): ChatDetails | null {
   if (!stat) return null
   const range = backend().range(jid)
   return {
-    ...summarize(stat),
+    ...viewChat(summarize(stat)),
     firstMessageAt: range.first,
     lastMessageAt: range.last,
     createdAt: stat.createdAt,
@@ -151,11 +168,11 @@ export function getMessages(jid: string, query: MessageQuery = {}): MessagePage 
 
   if (query.before != null) {
     const { rows, hasMore } = olderThan(jid, query.before, limit)
-    return { messages: hydrate(rows), hasOlder: hasMore, hasNewer: true, targetId: null }
+    return { messages: present(rows), hasOlder: hasMore, hasNewer: true, targetId: null }
   }
   if (query.after != null) {
     const { rows, hasMore } = newerThan(jid, query.after, limit)
-    return { messages: hydrate(rows), hasOlder: true, hasNewer: hasMore, targetId: null }
+    return { messages: present(rows), hasOlder: true, hasNewer: hasMore, targetId: null }
   }
 
   const anchor = query.anchor ?? { type: "latest" }
@@ -165,7 +182,7 @@ export function getMessages(jid: string, query: MessageQuery = {}): MessagePage 
 
   if (targetId == null) {
     const { rows, hasMore } = olderThan(jid, Number.MAX_SAFE_INTEGER, limit)
-    return { messages: hydrate(rows), hasOlder: hasMore, hasNewer: false, targetId: null }
+    return { messages: present(rows), hasOlder: hasMore, hasNewer: false, targetId: null }
   }
 
   // Centre the page on the target (target included in the "older" half).
@@ -173,7 +190,7 @@ export function getMessages(jid: string, query: MessageQuery = {}): MessagePage 
   const older = olderThan(jid, targetId + 1, half + 1)
   const newer = newerThan(jid, targetId, limit - half)
   return {
-    messages: hydrate([...older.rows, ...newer.rows]),
+    messages: present([...older.rows, ...newer.rows]),
     hasOlder: older.hasMore,
     hasNewer: newer.hasMore,
     targetId,

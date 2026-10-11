@@ -154,7 +154,10 @@ export function FiltersEditor({ value, onChange, catalog, show = {}, textLabel =
         <MultiSelect
           label="People"
           placeholder="Everyone"
-          options={catalog.people.map((p) => ({ value: p.jid === "me" ? "me" : p.jid, label: p.name, hint: p.messages.toLocaleString() }))}
+          options={[
+            { value: "viewer", label: "You (whoever is viewing)" },
+            ...catalog.people.map((p) => ({ value: p.jid, label: p.jid === "me" ? `${p.name} (phone owner)` : p.name, hint: p.messages.toLocaleString() })),
+          ]}
           value={value.people ?? []}
           onChange={(people) => set({ people })}
         />

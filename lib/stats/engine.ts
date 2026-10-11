@@ -2,6 +2,7 @@ import "server-only"
 
 import { canonicalJid, chatName, participant } from "../whatsapp/contacts"
 import { listChats } from "../whatsapp/queries"
+import { viewer, type ViewerInfo } from "../whatsapp/viewer"
 import { KIND_LIST, ME, dayStart, statsIndex, termMatches, type StatsIndex } from "./stats-index"
 import { normalizeEmoji } from "./emoji"
 import {
@@ -62,9 +63,7 @@ function compile(ix: StatsIndex, f: Filters | undefined, warnings: string[]): Co
   const emojiIdx = new Map(ix.emojis.map((e, i) => [e, i]))
   return {
     chatOk: f?.chats?.length ? flags(ix.chats.length, f.chats.map((c) => chatIdx.get(c) ?? -1)) : null,
-    personOk: f?.people?.length
-      ? flags(ix.people.length, f.people.map((p) => personIdx.get(p === ME ? ME : canonicalJid(p)) ?? -1))
-      : null,
+    personOk: f?.people?.length ? flags(ix.people.length, f.people.map((p) => personIndex(ix, personIdx, p))) : null,
     kindOk: f?.kinds?.length ? flags(KIND_LIST.length, f.kinds.map((k) => KIND_LIST.indexOf(k))) : null,
     from: f?.from ?? null,
     to: f?.to ?? null,
@@ -72,6 +71,30 @@ function compile(ix: StatsIndex, f: Filters | undefined, warnings: string[]): Co
     emojiSet: f?.emojis?.length ? new Set(f.emojis.map((e) => emojiIdx.get(normalizeEmoji(e)) ?? -1)) : null,
   }
   void warnings
+}
+
+/**
+ * Person tokens: "me" = the phone owner (whoever's phone this is); "viewer" =
+ * whoever is viewing in this session (the owner unless they chose otherwise).
+ */
+export const VIEWER = "viewer"
+
+function personIndex(ix: StatsIndex, personIdx: Map<string, number>, p: string): number {
+  if (p === ME) return 0
+  if (p === VIEWER) {
+    const v = viewer()
+    return v.jid ? (personIdx.get(v.jid) ?? -1) : 0
+  }
+  return personIdx.get(canonicalJid(p)) ?? -1
+}
+
+/** Display name of a person index for the current viewer. */
+function personLabel(ix: StatsIndex, key: number, v: ViewerInfo): string {
+  if (key < 0) return "Unknown"
+  if (key === 0) return v.jid ? v.ownerLabel : "You"
+  const jid = ix.people[key]
+  if (v.jid && jid === v.jid) return "You"
+  return participant(jid).name
 }
 
 function rowPasses(ix: StatsIndex, f: CompiledFilter, row: number, emojiContainment: boolean): boolean {
@@ -299,7 +322,7 @@ function chatLabels(): Map<string, string> {
   return new Map(listChats().map((c) => [c.jid, c.name]))
 }
 
-function labelFor(ix: StatsIndex, dim: Dimension | Split, key: number, chats: Map<string, string>): string {
+function labelFor(ix: StatsIndex, dim: Dimension | Split, key: number, chats: Map<string, string>, v: ViewerInfo = viewer()): string {
   switch (dim) {
     case "day": {
       const d = new Date(key * DAY_MS)
@@ -318,7 +341,7 @@ function labelFor(ix: StatsIndex, dim: Dimension | Split, key: number, chats: Ma
     case "weekday":
       return WEEKDAYS[key] ?? "?"
     case "person":
-      return key === 0 ? "You" : key < 0 ? "Unknown" : participant(ix.people[key]).name
+      return personLabel(ix, key, v)
     case "chat":
       return chats.get(ix.chats[key]) ?? chatName(ix.chats[key])
     case "kind":
@@ -571,6 +594,7 @@ function applyTransform(t: StatQuery["transform"], series: ResultSeries[], isTim
 
 export function statsCatalog(): StatsCatalog {
   const { index: ix } = statsIndex()
+  const v = viewer()
   const chats = chatLabels()
   const chatCount = new Int32Array(ix.chats.length)
   const personCount = new Int32Array(ix.people.length)
@@ -587,7 +611,7 @@ export function statsCatalog(): StatsCatalog {
       .filter((c) => c.messages > 0)
       .sort((a, b) => b.messages - a.messages),
     people: ix.people
-      .map((jid, i) => ({ jid, name: i === 0 ? "You" : participant(jid).name, messages: personCount[i] }))
+      .map((jid, i) => ({ jid, name: personLabel(ix, i, v), messages: personCount[i] }))
       .filter((p) => p.messages > 0)
       .sort((a, b) => b.messages - a.messages),
     emojis: ix.emojis
@@ -616,7 +640,7 @@ export function sanitizeForViewer(query: StatQuery): { query: StatQuery; removed
       removed += f.chats.length - out.chats.length
     }
     if (f.people) {
-      out.people = f.people.filter((p) => p === ME || people.has(canonicalJid(p)))
+      out.people = f.people.filter((p) => p === ME || p === VIEWER || people.has(canonicalJid(p)))
       removed += f.people.length - out.people.length
     }
     return out
@@ -625,4 +649,15 @@ export function sanitizeForViewer(query: StatQuery): { query: StatQuery; removed
     query: { ...query, filters: clean(query.filters) ?? {}, series: query.series.map((s) => ({ ...s, filters: clean(s.filters) })) },
     removed,
   }
+}
+
+/** Everyone who sent messages, with real names (not viewer-relative), busiest first — for "Who's viewing?". */
+export function peopleWithCounts(): { jid: string; name: string; messages: number }[] {
+  const { index: ix } = statsIndex()
+  const counts = new Int32Array(ix.people.length)
+  for (let i = 0; i < ix.n; i++) if (ix.person[i] > 0) counts[ix.person[i]]++
+  return ix.people
+    .map((jid, i) => ({ jid, name: participant(jid).name, messages: counts[i] }))
+    .filter((p, i) => i > 0 && p.messages > 0 && p.jid.includes("@"))
+    .sort((a, b) => b.messages - a.messages)
 }

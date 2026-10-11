@@ -33,6 +33,17 @@ export interface SavedSummary {
   query: StatQuery
 }
 
+const RETURN_KEY = "stats-return"
+
+interface ReturnState {
+  urls: string[]
+  query: StatQuery
+  view: "chart" | "table"
+  current: SavedSummary | null
+  scroll: [number, number]
+  at: number
+}
+
 interface Selection {
   category: number
   series?: number
@@ -41,6 +52,7 @@ interface Selection {
 export function StatsWorkbench({
   initialQuery,
   initialSaved,
+  initialView = "chart",
   catalog,
   presets,
   saved,
@@ -49,6 +61,7 @@ export function StatsWorkbench({
 }: {
   initialQuery: StatQuery
   initialSaved: SavedSummary | null
+  initialView?: "chart" | "table"
   catalog: StatsCatalog
   presets: Preset[]
   saved: SavedSummary[]
@@ -61,7 +74,7 @@ export function StatsWorkbench({
   const [result, setResult] = React.useState<StatResult | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
-  const [view, setView] = React.useState<"chart" | "table">("chart")
+  const [view, setView] = React.useState<"chart" | "table">(initialView)
   const [selection, setSelection] = React.useState<Selection | null>(null)
   const [dialog, setDialog] = React.useState<"presets" | "saved" | "save" | null>(null)
 
@@ -93,6 +106,61 @@ export function StatsWorkbench({
     }
   }, [query])
 
+  // Mirror the exact chart into the URL (replacing, not pushing, history entries), so
+  // going back from a chat — or reloading, or bookmarking — returns to this chart.
+  React.useEffect(() => {
+    const params = new URLSearchParams()
+    if (current) params.set("id", String(current.id))
+    params.set("q", encodeQuery(query))
+    if (view === "table") params.set("view", "table")
+    const next = `/stats?${params}`
+    if (`${location.pathname}${location.search}` !== next) window.history.replaceState(null, "", next)
+  }, [query, view, current])
+
+  // Going into a chat and pressing Back must land on exactly this chart. The router may
+  // rewrite this history entry's URL, so the state is also saved in sessionStorage just
+  // before leaving, keyed by the URLs this entry can come back with.
+  const asideRef = React.useRef<HTMLElement>(null)
+  const mainRef = React.useRef<HTMLElement>(null)
+  const entryUrl = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    const here = `${location.pathname}${location.search}`
+    entryUrl.current = here
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(RETURN_KEY) ?? "null") as ReturnState | null
+      sessionStorage.removeItem(RETURN_KEY)
+      if (saved && saved.urls.includes(here) && Date.now() - saved.at < 6 * 3600_000) {
+        // Restoring from an external store (sessionStorage) once on mount.
+        /* eslint-disable react-hooks/set-state-in-effect */
+        setQuery(saved.query)
+        setView(saved.view)
+        setCurrent(saved.current)
+        /* eslint-enable react-hooks/set-state-in-effect */
+        requestAnimationFrame(() => {
+          if (asideRef.current) asideRef.current.scrollTop = saved.scroll[0]
+          if (mainRef.current) mainRef.current.scrollTop = saved.scroll[1]
+        })
+      }
+    } catch {
+      // storage unavailable — start from the URL
+    }
+  }, [])
+  const rememberState = () => {
+    try {
+      const state: ReturnState = {
+        urls: [entryUrl.current ?? "", `${location.pathname}${location.search}`],
+        query,
+        view,
+        current,
+        scroll: [asideRef.current?.scrollTop ?? 0, mainRef.current?.scrollTop ?? 0],
+        at: Date.now(),
+      }
+      sessionStorage.setItem(RETURN_KEY, JSON.stringify(state))
+    } catch {
+      // ignore
+    }
+  }
+
   const load = (q: StatQuery, s: SavedSummary | null = null) => {
     setQuery(q)
     setCurrent(s)
@@ -100,7 +168,10 @@ export function StatsWorkbench({
     setSelection(null)
   }
 
-  const open = (p: PointChat) => router.push(chatHref(p.jid, { messageId: p.messageId }))
+  const open = (p: PointChat) => {
+    rememberState()
+    router.push(chatHref(p.jid, { messageId: p.messageId }))
+  }
 
   const select = (category: number, series?: number) => {
     if (!result) return
@@ -144,7 +215,7 @@ export function StatsWorkbench({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <aside className="shrink-0 overflow-y-auto border-b p-4 lg:w-[400px] lg:border-r lg:border-b-0">
+        <aside ref={asideRef} className="shrink-0 overflow-y-auto border-b p-4 lg:w-[400px] lg:border-r lg:border-b-0">
           <div className="mb-4 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Build your own statistic, or start from an idea.</span>
             <Button variant="ghost" size="sm" onClick={() => load(DEFAULT_QUERY)} title="Start over">
@@ -154,7 +225,7 @@ export function StatsWorkbench({
           <QueryBuilder query={query} onChange={(q) => setQuery(q)} catalog={catalog} />
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
+        <main ref={mainRef} className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
           {notice && (
             <Alert>
               <AlertDescription>{notice}</AlertDescription>

@@ -44,7 +44,8 @@ See [docs/msgstore-schema.md](docs/msgstore-schema.md) for the reverse-engineere
    a share of the total, smoothed, or **indexed to each series' peak**. Use indexing to compare
    series of different sizes on one axis; there are never two y-axes.
 
-Click any point, bar, cell or table row to open that moment in the chat. A time bucket opens at its
+Click any point, bar, cell or table row to open that moment in the chat. **Back** returns to exactly
+the chart you were on, including edits, the table view and scroll position. A time bucket opens at its
 first matching message, a category at its latest. When a point spans several chats, you pick one.
 
 "Ideas" holds about 30 ready-made statistics. **Save** keeps a statistic, and **Share with everyone**
@@ -81,6 +82,19 @@ How access is enforced:
   account or resetting its password ends them immediately.
 - **Passwords:** hashed with scrypt. Sign-in is rate-limited per username, and responses don't
   reveal whether a username exists.
+
+### Who's viewing
+
+The data comes from one phone, so "you" in the raw data means the phone owner. A login may be
+shared, so every sign-in starts at **Who's viewing?**, where you pick yourself from the people in
+the chats. You can change it anytime in **Settings** (or from the name in the sidebar footer). It is
+stored only on the session.
+
+When someone other than the owner is viewing, their messages show as "You" on the right. The
+owner's messages show under the **phone owner's name**, set in Settings and stored in the account's
+name mapping under the key `"me"`. This applies to chats, previews, quotes, reactions, system events
+and statistics. In the people filter, "You (whoever is viewing)" follows the viewer. The adjustment
+is applied after caching (`lib/whatsapp/viewer.ts`), so sessions never see each other's view.
 
 ### Contact names
 

@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Archive, BarChart3, BookUser, LogOut, MessageSquareText, Search, Shield } from "lucide-react"
+import { Archive, BarChart3, BookUser, LogOut, MessageSquareText, Search, Settings, Shield } from "lucide-react"
 
 import { ChatAvatar } from "./chat-avatar"
 import {
@@ -80,13 +80,22 @@ const ChatRow = React.memo(function ChatRow({ chat, active }: { chat: ChatSummar
   )
 })
 
-function UserFooter({ user }: { user: { username: string; role: "admin" | "user" } }) {
+type FooterUser = { username: string; role: "admin" | "user"; viewingAs: string }
+
+function UserFooter({ user }: { user: FooterUser }) {
   return (
-    <SidebarFooter className="flex-row items-center gap-2 border-t px-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{user.username}</div>
-        <div className="text-xs text-muted-foreground">{user.role === "admin" ? "Admin · all chats" : "Restricted access"}</div>
-      </div>
+    <SidebarFooter className="flex-row items-center gap-1 border-t px-3 py-2.5">
+      <Link href="/settings" className="min-w-0 flex-1 rounded-md px-1 py-0.5 hover:bg-sidebar-accent" title="Change who's viewing">
+        <div className="truncate text-sm font-medium">{user.viewingAs}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {user.username} · {user.role === "admin" ? "admin" : "restricted"}
+        </div>
+      </Link>
+      <Button asChild variant="ghost" size="icon" title="Settings" aria-label="Settings">
+        <Link href="/settings">
+          <Settings />
+        </Link>
+      </Button>
       <Button asChild variant="ghost" size="icon" title="Statistics" aria-label="Statistics">
         <Link href="/stats">
           <BarChart3 />
@@ -118,7 +127,7 @@ export function ChatSidebar({
   user,
 }: {
   chats: ChatSummary[]
-  user: { username: string; role: "admin" | "user" }
+  user: FooterUser
 }) {
   const pathname = usePathname()
   const [query, setQuery] = React.useState("")

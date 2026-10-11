@@ -355,7 +355,16 @@ export function listPeople(): string[] {
       people.add(canonicalJid(jid))
     }
     // Anyone already in the mapping stays listed, even if their messages left the account's access.
-    for (const [jid, entry] of names()) if (entry.mapped) people.add(jid)
+    for (const [jid, entry] of names()) if (entry.mapped && jid.includes("@")) people.add(jid)
     return [...people].sort()
   })
+}
+
+/** Key in an account's name mapping for the phone owner ("you" in the raw data). */
+export const OWNER_KEY = "me"
+
+/** The phone owner's name from the account's mapping, if one was set. */
+export function ownerName(): string | null {
+  const entry = names().get(OWNER_KEY)
+  return entry?.mapped && entry.name ? entry.name : null
 }

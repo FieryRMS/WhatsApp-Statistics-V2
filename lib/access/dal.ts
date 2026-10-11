@@ -52,10 +52,11 @@ export async function sourceFor(session: Session): Promise<DataSource> {
 
 const getRequestSource = cache(async (): Promise<DataSource> => sourceFor(await requireSession()))
 
-/** Run a (synchronous) data query against the signed-in account's data. */
+/** Run a (synchronous) data query against the signed-in account's data, as this session's viewer. */
 export async function withData<T>(fn: () => T): Promise<T> {
   const source = await getRequestSource()
-  return runWithSource(source, fn)
+  const session = await requireSession()
+  return runWithSource(source, fn, session.viewerJid)
 }
 
 /**
@@ -66,7 +67,7 @@ export async function apiWithData(fn: () => Response | object | null): Promise<R
   const session = await getSession()
   if (!session) return Response.json({ error: "Not signed in" }, { status: 401 })
   const source = await sourceFor(session)
-  const result = runWithSource(source, fn)
+  const result = runWithSource(source, fn, session.viewerJid)
   if (result instanceof Response) return result
   if (result == null) return Response.json({ error: "Not found" }, { status: 404 })
   return Response.json(result)

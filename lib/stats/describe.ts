@@ -4,7 +4,7 @@ import { DIMENSIONS, KINDS, METRICS, TRANSFORMS, type Filters, type SeriesDef, t
 
 function names(ids: string[] | undefined, lookup: Map<string, string>, max = 2) {
   if (!ids?.length) return null
-  const list = ids.map((id) => (id === "me" ? "you" : (lookup.get(id) ?? "an unavailable chat or person")))
+  const list = ids.map((id) => (id === "viewer" ? "you" : (lookup.get(id) ?? "an unavailable chat or person")))
   return list.length > max ? `${list.slice(0, max).join(", ")} and ${list.length - max} more` : list.join(" and ")
 }
 

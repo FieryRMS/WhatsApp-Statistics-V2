@@ -156,13 +156,19 @@ export class DataSource {
 // Source registry + per-request scope
 // ---------------------------------------------------------------------------
 
+interface Scope {
+  source: DataSource
+  /** Who is viewing (a person JID), or null for the phone owner. Presentation only — never cached. */
+  viewerJid: string | null
+}
+
 const globalForDb = globalThis as unknown as {
   __waSources?: Map<string, DataSource>
-  __waScope?: AsyncLocalStorage<DataSource>
+  __waScope2?: AsyncLocalStorage<Scope>
 }
 
 const sources = (globalForDb.__waSources ??= new Map())
-const scope = (globalForDb.__waScope ??= new AsyncLocalStorage<DataSource>())
+const scope = (globalForDb.__waScope2 ??= new AsyncLocalStorage<Scope>())
 
 /** The shared DataSource for a set of paths (one connection/cache per distinct config). */
 export function getSource(paths: SourcePaths): DataSource {
@@ -196,15 +202,20 @@ export function invalidateNames(namesFile: string) {
 }
 
 /** Run `fn` with `source` as the data source for every query helper it calls. */
-export function runWithSource<T>(source: DataSource, fn: () => T): T {
-  return scope.run(source, fn)
+export function runWithSource<T>(source: DataSource, fn: () => T, viewerJid: string | null = null): T {
+  return scope.run({ source, viewerJid }, fn)
 }
 
 /** The source selected for this request. Throws if none — never falls back to the primary DB. */
 export function currentSource(): DataSource {
   const s = scope.getStore()
   if (!s) throw new Error("No data source in scope: wrap data access in runWithSource() (see lib/access/dal.ts)")
-  return s
+  return s.source
+}
+
+/** Who is viewing in this request (null = the phone owner). */
+export function currentViewerJid(): string | null {
+  return scope.getStore()?.viewerJid ?? null
 }
 
 /** Drop memoized values in every source (called when a data module is reloaded in dev). */

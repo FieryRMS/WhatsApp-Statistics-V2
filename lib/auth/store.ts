@@ -95,6 +95,9 @@ export function appDb(): DatabaseSync {
     fs.mkdirSync(appDataDir, { recursive: true })
     const db = new DatabaseSync(path.join(appDataDir, "app.db"))
     db.exec(SCHEMA)
+    // Migrations for databases created by earlier versions.
+    const sessionCols = (db.prepare("SELECT name FROM pragma_table_info('sessions')").all() as { name: string }[]).map((c) => c.name)
+    if (!sessionCols.includes("viewer_jid")) db.exec("ALTER TABLE sessions ADD COLUMN viewer_jid TEXT")
     globalForStore.__waAppDb = db
   }
   return globalForStore.__waAppDb
@@ -166,6 +169,8 @@ export interface SessionRow {
   created_at: number
   expires_at: number
   last_seen_at: number
+  /** Who is looking at the data in this session (a person JID); null = the phone owner. */
+  viewer_jid: string | null
 }
 
 export function insertSession(s: { id: string; userId: number; expiresAt: number; userAgent: string | null }) {
@@ -177,6 +182,10 @@ export function insertSession(s: { id: string; userId: number; expiresAt: number
 
 export function findSession(id: string): SessionRow | null {
   return (appDb().prepare("SELECT * FROM sessions WHERE id = ?").get(id) as unknown as SessionRow | undefined) ?? null
+}
+
+export function setSessionViewer(id: string, viewerJid: string | null) {
+  appDb().prepare("UPDATE sessions SET viewer_jid = ? WHERE id = ?").run(viewerJid, id)
 }
 
 export function touchSession(id: string, expiresAt: number) {

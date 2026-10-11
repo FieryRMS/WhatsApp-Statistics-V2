@@ -18,6 +18,8 @@ export interface Session {
   id: string
   user: User
   expiresAt: number
+  /** Who is viewing in this session (chosen after each login); null = the phone owner. */
+  viewerJid: string | null
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex")
@@ -60,7 +62,7 @@ export async function readSession(): Promise<Session | null> {
   }
   const user = getUser(row.user_id)
   if (!user || user.disabled) return null
-  return { id: row.id, user, expiresAt: row.expires_at }
+  return { id: row.id, user, expiresAt: row.expires_at, viewerJid: row.viewer_jid ?? null }
 }
 
 /** Delete the current session and its cookie. Call only from a Server Action / Route Handler. */

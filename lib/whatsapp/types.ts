@@ -29,6 +29,9 @@ export interface ChatSummary {
     timestamp: number
     fromMe: boolean
     senderName: string | null
+    /** Sender JID; null = the phone owner. Used to present the chat for the current viewer. */
+    senderJid: string | null
+    system: boolean
     preview: string
   } | null
 }

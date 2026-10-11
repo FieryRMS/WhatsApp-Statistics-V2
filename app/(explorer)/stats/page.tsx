@@ -12,7 +12,8 @@ export const metadata = { title: "Statistics · WhatsApp Stats" }
  * /stats                → default statistic
  * /stats?preset=<id>    → a ready-made idea
  * /stats?id=<saved id>  → a saved (own or shared) statistic
- * /stats?q=<base64url>  → a shared link
+ * /stats?q=<base64url>  → a shared link (also how the page restores the exact chart on Back)
+ * &view=table           → open on the table view
  *
  * Whatever the source, the query is sanitised against the viewer's own data
  * before it reaches the browser.
@@ -34,6 +35,9 @@ export default async function StatsPage(props: PageProps<"/stats">) {
       query = s.query
       initialSavedId = s.id
     } else notice = "That saved statistic doesn't exist or isn't shared with you."
+    // Edits made since opening it are carried in ?q (restored when navigating back).
+    const edited = q ? parseQuery(decodeQuery(q)) : null
+    if (edited?.ok) query = edited.query
   } else if (q) {
     const parsed = parseQuery(decodeQuery(q))
     if (parsed.ok) query = parsed.query
@@ -66,6 +70,7 @@ export default async function StatsPage(props: PageProps<"/stats">) {
       key={JSON.stringify(sp)}
       initialQuery={initial}
       initialSaved={saved.find((s) => s.id === initialSavedId) ?? null}
+      initialView={one(sp.view) === "table" ? "table" : "chart"}
       catalog={catalog}
       presets={PRESETS}
       saved={saved}

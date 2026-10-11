@@ -53,7 +53,8 @@ export async function loginAction(_prev: FormState, form: FormData): Promise<For
 
   clearLoginFailures(username)
   await startSession(user.id)
-  redirect(safeNext(form.get("next")))
+  // Every sign-in starts by asking who's viewing (a login may be shared).
+  redirect(`/whoami?next=${encodeURIComponent(safeNext(form.get("next")))}`)
 }
 
 export async function logoutAction() {
