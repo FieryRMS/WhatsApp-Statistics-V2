@@ -45,6 +45,91 @@ You can override these paths with `WHATSAPP_DATA_DIR`, `WHATSAPP_DB_PATH`, `WHAT
 
 See [docs/msgstore-schema.md](docs/msgstore-schema.md) for the reverse-engineered schema and message types.
 
+## Getting the data
+
+### Media
+
+Copy the phone's media folder over USB (or any file manager) into `whatsapp-data/Media/`. No root
+is needed. On Android 11 and later it's at `Android/media/com.whatsapp/WhatsApp/Media`; older
+versions keep it at `WhatsApp/Media` in internal storage.
+
+### Databases
+
+> [!WARNING]
+> You follow these steps at your own risk. They move your WhatsApp account to another device and
+> back, and I'm not responsible for lost chats, bans or anything else that goes wrong. Make sure
+> your Google Drive backup is up to date before you start.
+
+`msgstore.db` and `wa.db` live in WhatsApp's private app directory, which only root can read. The
+`msgstore.db.crypt*` files in the phone's storage are encrypted backups and won't work. You can root
+your phone, or you can restore your Google Drive backup into an Android emulator on your computer
+and copy the files out of it. This is how it was done with [Waydroid](https://waydro.id) on Linux.
+Waydroid's Android data is a plain folder on the host, so the emulator doesn't need to be rooted:
+
+1. **Set up Waydroid with Google Play.** `sudo waydroid init -s GAPPS` downloads the GApps image.
+   Add `-f` to start over.
+2. **Make it look like a Pixel.** This step is required. Otherwise WhatsApp detects Waydroid's
+   LineageOS image and refuses to run, saying custom ROMs aren't supported. Add this to `/var/lib/waydroid/waydroid.cfg`, then run `sudo waydroid upgrade --offline` so the
+   values are written into `waydroid_base.prop`, and restart the container:
+
+   ```ini
+   [properties]
+   ro.product.brand = google
+   ro.product.manufacturer = Google
+   ro.product.model = Pixel 5
+   ro.product.device = redfin
+   ro.product.name = redfin
+   ro.build.product = redfin
+   ro.build.flavor = redfin-user
+   ro.build.type = eng
+   ro.build.tags = release-keys
+   ro.build.description = redfin-user 13 TQ3A.230901.001 10750268 release-keys
+   ro.build.display.id = TQ3A.230901.001
+   ro.build.fingerprint = google/redfin/redfin:13/TQ3A.230901.001/10750268:user/release-keys
+   ro.build.version.incremental = 10750268
+   ro.build.host = abfarm-01234
+   ro.build.user = android-build
+   ro.vendor_dlkm.build.fingerprint = google/redfin/redfin:13/TQ3A.230901.001/10750268:user/release-keys
+   ro.system.build.fingerprint = google/redfin/redfin:13/TQ3A.230901.001/10750268:user/release-keys
+   ro.vendor.build.fingerprint = google/redfin/redfin:13/TQ3A.230901.001/10750268:user/release-keys
+   ro.odm.build.fingerprint = google/redfin/redfin:13/TQ3A.230901.001/10750268:user/release-keys
+   ro.product.build.fingerprint = google/redfin/redfin:13/TQ3A.230901.001/10750268:user/release-keys
+   ro.system_ext.build.fingerprint = google/redfin/redfin:13/TQ3A.230901.001/10750268:user/release-keys
+   ro.bootimage.build.fingerprint = google/redfin/redfin:13/TQ3A.230901.001/10750268:user/release-keys
+   ```
+
+3. **Back up on your phone.** In WhatsApp, go to Settings → Chats → Chat backup and back up to Google
+   Drive.
+4. **Sign in to Google in Waydroid.** Use the Google account that holds the backup. WhatsApp only
+   finds a Drive backup through a signed-in account.
+5. **Install WhatsApp and register.** Install it from Play Store. If it opens on "link as a companion
+   device", pick the option to register instead from the menu.
+   - Enter your phone number.
+   - WhatsApp asks to restore your messages. **Skip** it, unless Google Drive is already offered.
+   - WhatsApp then sends a code. Enter it to log in. This signs WhatsApp out on your phone. The
+     phone will offer to delete the account or log back in. **Don't touch either option**; leave the
+     phone alone until you're done.
+   - Once you're logged in, WhatsApp asks to restore again, this time with **Google Drive** as an
+     option. Choose it. The other option, restoring from another device, doesn't work on Waydroid
+     because it has no Wi-Fi.
+   - Wait for the restore to finish. WhatsApp restores your messages first. If your backup includes
+     media, it downloads that afterwards.
+6. **Copy the databases out.** Stop Waydroid first so everything is flushed to the `.db` files, then
+   copy them straight from the host:
+
+   ```bash
+   waydroid session stop
+   sudo cp ~/.local/share/waydroid/data/data/com.whatsapp/databases/{msgstore,wa}.db whatsapp-data/
+   sudo chown "$USER" whatsapp-data/*.db
+   ```
+
+   You only need the message restore for the databases, so you can copy them once it's done. If your
+   backup includes media, you can wait for that download too and copy it from
+   `~/.local/share/waydroid/data/media/0/Android/media/com.whatsapp/WhatsApp/Media/` (with `sudo`)
+   instead of from the phone.
+7. **Log back in on your phone.** Choose to log back in and verify your number again. Your chats on
+   the phone stay as they were. This signs the emulator out.
+
 ## Statistics
 
 `/stats` (chart icon in the sidebar) is a graph builder:
